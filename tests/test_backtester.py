@@ -87,7 +87,7 @@ async def test_long_trade_closes_on_take_profit(monkeypatch):
     
     data = {
         'Open':   [99, 101, 105],
-        'High':   [102, 103, 121], # <-- Szczyt tej świecy uderza w TP
+        'High':   [102, 103, 123],
         'Low':    [98, 99, 104],
         'Close':  [entry_price, 102, 118]
     }

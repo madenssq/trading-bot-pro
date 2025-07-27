@@ -204,8 +204,7 @@ def populate_indicator_summary_table(all_timeframe_data: dict, table_widget: QTa
     table_widget.resizeRowsToContents()
 
 def generate_html_from_analysis(parsed_data: dict) -> str:
-    # Ta funkcja jest skopiowana z AnalysisTab i pozostaje bez zmian
-    # ... (pełna treść funkcji)
+
     if not parsed_data:
         return "<h3>Błąd</h3><p>Otrzymano puste dane do wygenerowania raportu.</p>"
 

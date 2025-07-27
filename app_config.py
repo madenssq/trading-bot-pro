@@ -35,32 +35,42 @@ CACHE_MAX_AGE_SECONDS = 24 * 60 * 60
 
 DEFAULT_SETTINGS = {
     "app": {
-        "theme": "ciemny"
+        "theme": "jasny",
+        "background_path": "" # Domyślnie puste
     },
     "ai": {
-        "url": "http://localhost:1234/v1/chat/completions",
-        "model": "local-model",
+        "url": "http://localhost:11434/v1/chat/completions",
+        "model": "dolphin-pro",
         "temperature": 0.6,
-        "max_tokens": 8096,
-        "timeout": 180,
-        "min_rr_ratio": 2.0 # Minimalny stosunek R:R
+        "max_tokens": 16384,
+        "timeout": 300,
+        "min_rr_ratio": 2.0,
+        # --- NOWA SEKCJA ---
+        "validation": {
+            "max_tp_to_atr_ratio": 3.0,
+            "golden_setup_min_confidence": 7
+        }
     },
     "ssnedam": {
-        "enabled": False,
-        "group": "Ulubione",
-        "interval_minutes": 5,
+        "enabled": True,
+        "group": "",
+        "interval_minutes": 15,
         "alert_interval": "4h",
-        "cooldown_minutes": 60,
-        "scanner_prominence": 0.5, # Czułość skanera (prominencja)
-        "scanner_distance": 10, # Czułość skanera (dystans)
-        "setup_expiration_candles": 12 # NOWY PARAMETR: Po ilu świecach setup wygasa
+        "cooldown_minutes": 90,
+        "scanner_prominence": 0.5,
+        "scanner_distance": 10,
+        "setup_expiration_candles": 12,
+        # --- NOWE USTAWIENIA DLA SKANERA S/R ---
+        "sr_scanner_prominence_multiplier": 0.5,
+        "sr_scanner_distance": 10
     },
     "ai_context_modules": {
         "use_market_regime": True,
         "use_order_flow": True,
         "use_onchain_data": True,
-        "use_performance_insights": True
+        "use_performance_insights": False
     },
+    # ... reszta słownika (strategies, logging, etc.) bez zmian ...
     "strategies": {
         "ai_clone": {
             "ema_fast_len": 21,
@@ -74,11 +84,36 @@ DEFAULT_SETTINGS = {
     },
     "logging": {
         "level": "INFO",
-        "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        "max_size_mb": 10,
+        "backup_count": 3
     },
     "telegram": {
         "api_token": "",
         "chat_id": ""
+    },
+    "analysis": {
+        "default_interval": "1h",
+        "multi_timeframe_intervals": [
+            "1h",
+            "4h",
+            "1d"
+        ],
+        "default_mode": "Antycypacja",
+        "indicator_params": {
+            "rsi_length": 14,
+            "ema_fast_length": 50,
+            "ema_slow_length": 200,
+            "macd_fast": 12,
+            "macd_slow": 26,
+            "macd_signal": 9,
+            "bbands_length": 20,
+            "bbands_std": 2.0,
+            "atr_length": 14
+        }
+    },
+    "cryptopanic": {
+        "api_token": ""
     }
 }
 

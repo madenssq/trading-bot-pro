@@ -197,8 +197,11 @@ class AIClient:
             reward = abs(tp1 - entry)
             if risk == 0: return None
             r_r_ratio = reward / risk
-            if r_r_ratio < 1.5:
-                logger.warning(f"Setup odrzucony. Po korekcie SL, R:R ({r_r_ratio:.2f}) jest < 1.5.")
+            
+            # --- ZMIANA: Używamy wartości z ustawień ---
+            min_rr = self.settings.get('ai.min_rr_ratio', 1.5)
+            if r_r_ratio < min_rr:
+                logger.warning(f"Setup odrzucony. Po korekcie SL, R:R ({r_r_ratio:.2f}) jest < {min_rr}.")
                 return None
             setup['r_r_ratio'] = round(r_r_ratio, 2)
         except Exception:
@@ -206,8 +209,10 @@ class AIClient:
             
         # --- Walidacja ATR dla TP (bez zmian) ---
         if atr_value and atr_value > 0:
-            if abs(tp1 - entry) > (3.0 * atr_value):
-                logger.warning(f"Setup odrzucony. Cel zysku jest nierealistyczny w stosunku do ATR.")
+            # --- ZMIANA: Używamy wartości z ustawień ---
+            max_tp_atr = self.settings.get('ai.validation.max_tp_to_atr_ratio', 3.0)
+            if abs(tp1 - entry) > (max_tp_atr * atr_value):
+                logger.warning(f"Setup odrzucony. Cel zysku jest nierealistyczny w stosunku do ATR (większy niż {max_tp_atr}x ATR).")
                 return None
 
         return setup

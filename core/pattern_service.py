@@ -114,17 +114,23 @@ class PatternService:
         return gaps
 
     def find_programmatic_sr_levels(self, df: pd.DataFrame, indicator_service) -> dict:
-        """Automatycznie znajduje poziomy S/R."""
+        """Automatycznie znajduje poziomy S/R na podstawie konfigurowalnych parametrów."""
         if df.empty: return {"support": [], "resistance": []}
         supports, resistances = set(), set()
         last_price = df['Close'].iloc[-1]
         
+        # --- ZMIANA: Używamy wartości z ustawień ---
+        params = self.settings.get('ssnedam', {})
+        prominence_val = df['High'].std() * params.get('sr_scanner_prominence_multiplier', 0.5)
+        distance_val = params.get('sr_scanner_distance', 10)
+
         pivots = indicator_service._calculate_pivot_points(df)
         for key, val in pivots.items():
             (supports if val < last_price else resistances).add(round(val, 4))
 
-        high_peaks, _ = find_peaks(df['High'], distance=10, prominence=df['High'].std() * 0.5)
-        low_peaks, _ = find_peaks(-df['Low'], distance=10, prominence=df['Low'].std() * 0.5)
+        high_peaks, _ = find_peaks(df['High'], distance=distance_val, prominence=prominence_val)
+        low_peaks, _ = find_peaks(-df['Low'], distance=distance_val, prominence=prominence_val)
+        
         for idx in high_peaks[-3:]: resistances.add(round(df['High'].iloc[idx], 4))
         for idx in low_peaks[-3:]: supports.add(round(df['Low'].iloc[idx], 4))
 

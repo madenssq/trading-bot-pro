@@ -49,6 +49,10 @@ SETTINGS_STRUCTURE = {
         {'key': 'strategies.ai_clone.atr_len', 'label': 'Długość ATR:', 'widget': QSpinBox, 'params': {'minimum': 2, 'maximum': 50}, 'tooltip': 'Długość wskaźnika ATR, używanego do obliczania Stop Lossa.'},
         {'key': 'strategies.ai_clone.atr_multiplier_sl', 'label': 'Mnożnik ATR dla SL:', 'widget': QDoubleSpinBox, 'params': {'minimum': 0.1, 'maximum': 10.0, 'singleStep': 0.1}, 'tooltip': 'Jak daleko od ceny wejścia (w wielokrotnościach ATR) ma być ustawiony Stop Loss.'},
         {'key': 'strategies.ai_clone.risk_reward_ratio', 'label': 'Docelowy R:R strategii:', 'widget': QDoubleSpinBox, 'params': {'minimum': 0.5, 'maximum': 10.0, 'singleStep': 0.1}, 'tooltip': 'Docelowy stosunek zysku do ryzyka dla tej strategii.'},
+        {'key': 'ai.validation.max_tp_to_atr_ratio', 'label': 'Maks. stosunek TP do ATR:', 'widget': QDoubleSpinBox, 'params': {'minimum': 1.0, 'maximum': 10.0, 'singleStep': 0.1}, 'tooltip': 'Walidacja: Odrzuca setupy, w których TP jest nierealistycznie daleko w stosunku do zmienności.'},
+        {'key': 'ai.validation.golden_setup_min_confidence', 'label': 'Min. pewność złotego setupu:', 'widget': QSpinBox, 'params': {'minimum': 1, 'maximum': 10}, 'tooltip': 'Minimalna pewność (confidence), aby setup został uznany za "złoty przykład" do nauki AI.'},
+        {'key': 'ssnedam.sr_scanner_prominence_multiplier', 'label': 'Czułość S/R (Prominencja):', 'widget': QDoubleSpinBox, 'params': {'minimum': 0.1, 'maximum': 5.0, 'singleStep': 0.1}, 'tooltip': 'Mnożnik odchylenia standardowego dla czułości skanera poziomów S/R.'},
+        {'key': 'ssnedam.sr_scanner_distance', 'label': 'Czułość S/R (Dystans):', 'widget': QSpinBox, 'params': {'minimum': 2, 'maximum': 50}, 'tooltip': 'Minimalna odległość w świecach między szczytami/dołkami dla skanera S/R.'}
     ]
 }
 
