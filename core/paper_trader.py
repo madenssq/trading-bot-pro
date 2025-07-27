@@ -51,7 +51,6 @@ class PaperTrader:
 
         logger.info(f"[PaperTrader] Sprawdzanie {len(pending_trades)} oczekujących transakcji...")
         
-        # Grupujemy transakcje, aby pobrać dane dla każdego rynku tylko raz
         trades_by_market = {}
         for trade in pending_trades:
             key = (trade['symbol'], trade['interval'])
@@ -61,67 +60,77 @@ class PaperTrader:
 
         for (symbol, interval), trades in trades_by_market.items():
             try:
-                # Aby sprawdzić wiek, musimy pobrać historię od najstarszego setupu
                 oldest_trade_ts = min(t['timestamp'] for t in trades)
-                
                 exchange_id = trades[0].get('exchange', 'BINANCE')
                 exchange_instance = await self.analyzer.exchange_service.get_exchange_instance(exchange_id)
-                if not exchange_instance:
-                    continue
+                if not exchange_instance: continue
                 
-                # Pobieramy dane OHLCV od najstarszego setupu do teraz
                 ohlcv = await self.analyzer.exchange_service.fetch_ohlcv(
                     exchange_instance, symbol, interval, since=int(oldest_trade_ts * 1000)
                 )
-                
-                if ohlcv is None or ohlcv.empty:
-                    continue
+                if ohlcv is None or ohlcv.empty: continue
                 
                 last_candle = ohlcv.iloc[-1]
 
                 for trade in trades:
                     trade_id = trade['id']
                     
-                    # --- Scenariusz A: Transakcja jest już AKTYWNA ---
+                    # --- SCENARIUSZ A: Transakcja AKTYWNA ---
                     if trade.get('is_active', 0) == 1:
-                        result = self._check_sl_tp(trade, last_candle)
-                        if result:
-                            exit_price = float(trade['take_profit']) if result == 'TP_HIT' else float(trade['stop_loss'])
-                            logger.info(f"TRANSAKCJA AKTYWNA ZAMKNIĘTA: {symbol} ({trade['type']}) osiągnęła {result} przy cenie {exit_price}.")
-                            self.db_manager.update_trade_result(trade_id, result, symbol)
-                        continue # Przejdź do następnej transakcji
+                        # --- NOWA LOGIKA DLA AKTYWNYCH TRANSAKCJI ---
+                        # 1. Sprawdź, czy nie trafiono w TP1 (jeśli jeszcze nie był)
+                        is_partially_closed = trade.get('is_partially_closed', 0) == 1
+                        tp1_price = trade.get('take_profit_1')
 
-                    # --- Scenariusz B: Transakcja jest OCZEKUJĄCA ---
-                    
-                    # 1. Sprawdź, czy setup WYGASŁ
+                        if not is_partially_closed and tp1_price and self._check_tp1_hit(trade, last_candle):
+                            # Jeśli trafiono w TP1, zapisz zdarzenie i zaktualizuj transakcję
+                            logger.info(f"TRANSAKCJA ID {trade_id}: Osiągnięto TP1 przy cenie {tp1_price}.")
+                            self.db_manager.log_trade_event(trade_id, 'TP1_HIT', {'price': tp1_price})
+                            self.db_manager.log_trade_event(trade_id, 'SL_MOVED_TO_BE', {'price': trade['entry_price']})
+                            self.db_manager.mark_trade_as_partially_closed(trade_id, trade['entry_price'])
+                        else:
+                            # Jeśli nie, sprawdź ostateczne SL/TP
+                            result = self._check_sl_tp(trade, last_candle)
+                            if result:
+                                exit_price = float(trade['take_profit']) if result == 'TP_HIT' else float(trade['stop_loss'])
+                                logger.info(f"TRANSAKCJA AKTYWNA ZAMKNIĘTA: {symbol} osiągnęła {result} przy cenie {exit_price}.")
+                                self.db_manager.update_trade_result(trade_id, result, symbol)
+                        continue
+
+                    # --- SCENARIUSZ B: Transakcja OCZEKUJĄCA (logika bez zmian) ---
                     trade_timestamp = pd.to_datetime(trade['timestamp'], unit='s')
                     candles_since_setup = ohlcv[ohlcv.index > trade_timestamp]
                     if len(candles_since_setup) > self.expiration_limit:
-                        logger.info(f"SETUP WYGASŁY: {symbol} ({trade['type']}) nie wszedł w pozycję przez {self.expiration_limit} świec.")
-                        self.db_manager.update_trade_result(trade_id, 'WYGASŁY', symbol)
-                        continue
+                        self.db_manager.update_trade_result(trade_id, 'WYGASŁY', symbol); continue
 
-                    # 2. Sprawdź warunki wejścia, anulowania lub aktywacji na ostatniej świecy
-                    candle_low, candle_high = last_candle['Low'], last_candle['High']
                     entry, sl = float(trade['entry_price']), float(trade['stop_loss'])
-                    
-                    entry_triggered = (trade['type'] == 'Long' and candle_low <= entry) or \
-                                      (trade['type'] == 'Short' and candle_high >= entry)
-                    
-                    sl_hit_before_entry = (trade['type'] == 'Long' and candle_low <= sl and candle_high < entry) or \
-                                          (trade['type'] == 'Short' and candle_high >= sl and candle_low > entry)
+                    entry_triggered = (trade['type'] == 'Long' and last_candle['Low'] <= entry) or \
+                                      (trade['type'] == 'Short' and last_candle['High'] >= entry)
+                    sl_hit_before_entry = (trade['type'] == 'Long' and last_candle['Low'] <= sl and last_candle['High'] < entry) or \
+                                          (trade['type'] == 'Short' and last_candle['High'] >= sl and last_candle['Low'] > entry)
 
                     if sl_hit_before_entry:
-                        logger.info(f"SETUP ANULOWANY: {symbol} ({trade['type']}) uderzył w SL ({sl}) przed wejściem ({entry}).")
                         self.db_manager.update_trade_result(trade_id, 'ANULOWANY', symbol)
-                    
                     elif entry_triggered:
                         self.db_manager.activate_trade(trade_id, symbol)
             
             except Exception as e:
                 trade_ids_in_batch = [t['id'] for t in trades]
-                logger.warning(f"[PaperTrader] Nie udało się sprawdzić transakcji dla {symbol} (ID: {trade_ids_in_batch}). Błąd: {e}")
+                logger.warning(f"[PaperTrader] Błąd podczas sprawdzania {symbol} (ID: {trade_ids_in_batch}). Błąd: {e}")
                 continue
+    
+    # --- NOWA METODA POMOCNICZA ---
+    def _check_tp1_hit(self, trade: dict, candle: pd.Series) -> bool:
+        """Sprawdza, czy cena osiągnęła poziom TP1."""
+        tp1_price = trade.get('take_profit_1')
+        if not tp1_price: return False
+        
+        tp1_price = float(tp1_price)
+        if trade['type'] == 'Long' and candle['High'] >= tp1_price:
+            return True
+        if trade['type'] == 'Short' and candle['Low'] <= tp1_price:
+            return True
+        return False
 
     def _check_sl_tp(self, trade: dict, candle: pd.Series) -> Optional[str]:
         """Sprawdza, czy aktywna transakcja osiągnęła SL lub TP."""

@@ -10,44 +10,53 @@ class PerformanceAnalyzer:
 
     def get_performance_insights(self) -> str:
         """
-        Analizuje dziennik, oblicza kluczowe statystyki i generuje wnioski dla AI.
+        Analizuje dziennik, oblicza kluczowe statystyki w podgrupach
+        i generuje szczegółowe wnioski dla AI.
         """
-        # Pobieramy tylko wpisy, które są setupami transakcyjnymi
         all_setups = self.db_manager.get_all_trades(filters={'entry_type': 'SETUP'})
         
-        # Potrzebujemy rozsądnej próbki, aby statystyki miały sens
         if len(all_setups) < 10: 
             return "Brak wystarczających danych historycznych do wyciągnięcia wniosków."
 
-        # Konwertujemy na DataFrame - to najlepsze narzędzie do takich analiz
         df = pd.DataFrame(all_setups)
         
-        # Bierzemy pod uwagę tylko zakończone transakcje
-        closed_trades = df[df['result'].isin(['TP_HIT', 'SL_HIT'])].copy()
+        # Bierzemy pod uwagę tylko zakończone transakcje, które mają zdefiniowany reżim rynkowy
+        closed_trades = df[
+            df['result'].isin(['TP_HIT', 'SL_HIT']) & 
+            df['market_regime'].notna()
+        ].copy()
+        
         if len(closed_trades) < 5:
-            return "Brak wystarczających danych o zakończonych transakcjach."
+            return "Brak wystarczających danych o zakończonych transakcjach z określonym reżimem rynkowym."
 
         insights = []
 
-        # --- Analiza #1: Skuteczność Long vs Short ---
-        # Używamy apply, aby bezpiecznie obliczyć win rate dla każdej grupy
+        # --- NOWA, ZAAWANSOWANA ANALIZA ---
+        # Grupujemy transakcje po typie (Long/Short) ORAZ po reżimie rynkowym
+        
         def calculate_win_rate(group):
+            if len(group) < 3: # Ignorujemy grupy z małą próbką
+                return None
             wins = (group['result'] == 'TP_HIT').sum()
             total = len(group)
-            return (wins / total) * 100 if total > 0 else 0
+            return (wins / total) * 100
 
-        win_rate_by_type = closed_trades.groupby('type').apply(calculate_win_rate)
+        # Obliczamy skuteczność dla każdej podgrupy
+        win_rate_by_group = closed_trades.groupby(['type', 'market_regime']).apply(calculate_win_rate)
 
-        if 'Long' in win_rate_by_type:
-            insights.append(f"Historyczna skuteczność setupów 'Long' wynosi {win_rate_by_type['Long']:.1f}%.")
-        if 'Short' in win_rate_by_type:
-            insights.append(f"Historyczna skuteczność setupów 'Short' wynosi {win_rate_by_type['Short']:.1f}%.")
-            
-        # --- Tutaj w przyszłości możemy dodać więcej analiz (np. po confidence, po reżimie rynku) ---
-
+        # Formatujemy wyniki w czytelny tekst
+        for (trade_type, regime), win_rate in win_rate_by_group.items():
+            if win_rate is not None:
+                insight_text = (
+                    f"Historyczna skuteczność dla typu '{trade_type}' "
+                    f"w reżimie '{regime}' wynosi {win_rate:.1f}% "
+                    f"(na podstawie {len(closed_trades.loc[(closed_trades.type == trade_type) & (closed_trades.market_regime == regime)])} transakcji)."
+                )
+                insights.append(insight_text)
+        
         if not insights:
-            return "Nie udało się wygenerować żadnych wniosków z analizy."
+            return "Nie udało się wygenerować żadnych szczegółowych wniosków z analizy."
 
         final_string = "Wnioski z Autorefleksji: " + " ".join(insights)
-        logger.info(f"Wygenerowano wnioski z analizy performance: {final_string}")
+        logger.info(f"Wygenerowano szczegółowe wnioski z analizy performance: {final_string}")
         return final_string

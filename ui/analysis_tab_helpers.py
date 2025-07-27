@@ -2,6 +2,7 @@ import pandas as pd
 import pyqtgraph as pg
 import numpy as np
 from typing import Dict, List
+from datetime import datetime
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QTableWidget, QGraphicsRectItem
@@ -15,10 +16,10 @@ from core.ssnedam import AlertData
 from .history_dialog import CandlestickItem, DateAxis
 from .styles import THEMES
 
-def draw_chart_with_features(context, plot_widget, df: pd.DataFrame, fvgs: list = None, setup: dict = None, sr_levels: dict = None, title: str = "Wykres Analizy", zoom_range: Dict = None, alert_data: 'AlertData' = None, fib_data: dict = None):
+def draw_chart_with_features(context, plot_widget, df: pd.DataFrame, fvgs: list = None, setup: dict = None, sr_levels: dict = None, title: str = "Wykres Analizy", zoom_range: Dict = None, alert_data: 'AlertData' = None, fib_data: dict = None, trade_events: List = None):
     plot_widget.clear()
     theme_setting = context.settings_manager.get('app.theme', 'ciemny')
-    theme_key = theme_setting
+    theme_key = 'dark' if theme_setting == 'ciemny' else theme_setting
     theme = THEMES[theme_key]
 
     plot_widget.setBackground(theme['CHART_BG'])
@@ -60,6 +61,8 @@ def draw_chart_with_features(context, plot_widget, df: pd.DataFrame, fvgs: list 
             context.plot_area.addItem(trap_line)
             if 'trap_levels' not in context.plotted_items: context.plotted_items['trap_levels'] = []
             context.plotted_items['trap_levels'].append(trap_line)
+    if trade_events:
+        _draw_trade_events(context, plot_area, trade_events)
 
     if zoom_range:
         # Jeśli podano niestandardowy zoom (np. w Alercie), użyj go
@@ -301,3 +304,31 @@ def _draw_fibonacci_levels(context, plot, fib_data: dict):
                                labelOpts={'position': 0.95, 'color': (100, 100, 150)})
         plot.addItem(line)
         context.plotted_items['fibonacci'].append(line)
+
+def _draw_trade_events(context, plot, events: List[Dict]):
+    """Rysuje na wykresie zdarzenia z życia transakcji (TP1, SL to BE)."""
+    if 'trade_events' not in context.plotted_items:
+        context.plotted_items['trade_events'] = []
+    
+    for event in events:
+        event_time = event.get('timestamp')
+        event_type = event.get('event_type')
+        details = event.get('details', {})
+        price_level = details.get('price')
+
+        if not event_time or not event_type:
+            continue
+            
+        if event_type == 'TP1_HIT' and price_level:
+            # Rysujemy linię dla TP1
+            tp1_line = pg.InfiniteLine(pos=price_level, angle=0, pen=pg.mkPen('#00A86B', style=Qt.PenStyle.DashLine, width=2), 
+                                       label='TP1 {value:.4f}', labelOpts={'position': 0.85, 'color': '#00A86B'})
+            plot.addItem(tp1_line)
+            context.plotted_items['trade_events'].append(tp1_line)
+
+        if event_type == 'SL_MOVED_TO_BE':
+            # Rysujemy pionową linię w miejscu, gdzie SL został przesunięty
+            event_line = pg.InfiniteLine(pos=event_time, angle=90, pen=pg.mkPen('#1E90FF', style=Qt.PenStyle.DotLine),
+                                         label='SL to B/E', labelOpts={'position': 0.95, 'color': '#1E90FF', 'movable': True})
+            plot.addItem(event_line)
+            context.plotted_items['trade_events'].append(event_line)

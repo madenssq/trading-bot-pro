@@ -53,7 +53,7 @@ class AIClient:
             "stream": False
         }
         
-        timeout_config = httpx.Timeout(float(self.timeout), connect=60.0)
+        timeout_config = httpx.Timeout(float(self.timeout), connect=10.0) # Zmniejszamy connect timeout do 10s
 
         try:
             async with httpx.AsyncClient(timeout=timeout_config) as client:
@@ -62,12 +62,17 @@ class AIClient:
                 json_response = response.json()
                 content = json_response["choices"][0]["message"]["content"]
                 return content
+        # --- NOWA, BARDZIEJ SZCZEGÓŁOWA OBSŁUGA BŁĘDÓW ---
         except httpx.ReadTimeout as e:
             logger.error(f"Błąd ReadTimeout podczas komunikacji z AI: {e}", exc_info=True)
-            raise TimeoutError(f"Serwer AI nie odpowiedział na czas.") from e
+            # Rzucamy nasz własny, zrozumiały wyjątek
+            raise TimeoutError(f"Serwer AI ({self.api_url}) nie odpowiedział na czas ({self.timeout}s).") from e
         except httpx.ConnectError as e:
             logger.error(f"Błąd ConnectError podczas komunikacji z AI: {e}", exc_info=True)
-            raise ConnectionError(f"Błąd połączenia z serwerem AI: {e.request.url}.") from e
+            raise ConnectionError(f"Nie można połączyć się z serwerem AI pod adresem: {self.api_url}. Upewnij się, że serwer Ollama jest uruchomiony.") from e
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Błąd HTTP ({e.response.status_code}) od serwera AI: {e.response.text}", exc_info=True)
+            raise ConnectionError(f"Serwer AI zwrócił błąd HTTP {e.response.status_code}. Sprawdź, czy model '{self.model}' jest poprawnie załadowany.") from e
         except Exception as e: 
             logger.error(f"Nieoczekiwany błąd podczas komunikacji z AI: {e}", exc_info=True)
             raise

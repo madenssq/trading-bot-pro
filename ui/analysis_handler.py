@@ -45,12 +45,14 @@ class AnalysisHandler:
 
     async def run_full_analysis(self, symbol: str, interval: str, exchange: str, trade_mode: str):
         try:
+            # --- NOWY BLOK TRY...EXCEPT WOKÓŁ GŁÓWNEGO WYWOŁANIA ---
             parsed_response, analysis_result, best_timeframe, context_data = await self.ai_pipeline.run(
                 symbol, interval, exchange, self.update_status
             )
 
             if not parsed_response or not analysis_result:
-                QMessageBox.warning(self.parent_widget, "Błąd Analizy", "Nie udało się uzyskać odpowiedzi od AI lub pobrać danych.")
+                # Ten komunikat może się pojawić, jeśli AI nie zwróciło poprawnego JSONa
+                QMessageBox.warning(self.parent_widget, "Błąd Analizy", "Nie udało się uzyskać poprawnej odpowiedzi od AI lub pobrać danych. Sprawdź logi po więcej informacji.")
                 return
 
             # Zapisujemy tylko ogólną analizę, setup jest już zalogowany w pipeline
@@ -71,10 +73,17 @@ class AnalysisHandler:
                 fib_data=json.loads(tactician_inputs.get('fibonacci_data', '{}'))
             )
 
+        # --- NOWA SEKCJA OBSŁUGI BŁĘDÓW ---
+        except (ConnectionError, TimeoutError) as e:
+            # Łapiemy błędy połączenia i timeoutu rzucone przez AIClient
+            logger.critical(f"Błąd połączenia z AI podczas analizy: {e}")
+            # Wyświetlamy CZYTELNY komunikat w UI
+            QMessageBox.critical(self.parent_widget, "Błąd Połączenia z AI", str(e))
         except Exception as e:
             logger.critical(f"Krytyczny błąd w AnalysisHandler: {e}", exc_info=True)
             QMessageBox.critical(self.parent_widget, "Błąd Krytyczny Analizy", f"Wystąpił nieoczekiwany błąd:\n{e}")
         finally:
+            # Ta linijka ZAWSZE się wykona, odblokowując UI
             self.update_status("Czuwanie...", False)
 
     # NOWA METODA POMOCNICZA

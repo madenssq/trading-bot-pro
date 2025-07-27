@@ -646,7 +646,9 @@ class MainWindow(QMainWindow):
     def apply_styles(self):
         theme, bg_path = self.settings_manager.get('app.theme','ciemny'), self.settings_manager.get('app.background_path')
         stylesheet = get_theme_stylesheet(theme, bg_path); QApplication.instance().setStyleSheet(stylesheet)
-        theme_key = theme
+        
+        theme_key = 'dark' if theme == 'ciemny' else theme
+        
         pg.setConfigOption('background', THEMES[theme_key]['CHART_BG']); pg.setConfigOption('foreground', THEMES[theme_key]['CHART_FG'])
         banner = f"assets/banner_{theme}.png"
         if hasattr(self, 'banner_label') and os.path.exists(banner): self.banner_label.setPixmap(QPixmap(banner).scaled(self.banner_label.width(), self.banner_label.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))

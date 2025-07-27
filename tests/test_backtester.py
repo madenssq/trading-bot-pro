@@ -122,3 +122,93 @@ async def test_long_trade_closes_on_take_profit(monkeypatch):
     assert trade['exit_price'] == pytest.approx(102.0 * 1.20)
     # Sprawdzamy, czy zanotowaliśmy zysk
     assert trade['profit_usd'] > 0
+
+class SellAndHoldStrategy(Strategy):
+    def init(self):
+        pass
+
+    def next(self):
+        if not self._broker.in_position:
+            entry_price = self.data.Close.iloc[self.i]
+            # Dla shorta SL jest powyżej ceny wejścia, a TP poniżej
+            sl_price = entry_price * 1.10  # 10% powyżej
+            tp_price = entry_price * 0.80  # 20% poniżej
+            self._broker.sell(sl=sl_price, tp=tp_price)
+
+
+@pytest.mark.asyncio
+async def test_short_trade_closes_on_stop_loss(monkeypatch):
+    """Testuje, czy krótka pozycja jest poprawnie zamykana po osiągnięciu Stop Lossa."""
+    # 1. Skonfiguruj (Arrange)
+    settings_manager = SettingsManager()
+    backtester = Backtester(settings_manager)
+
+    # Dane, które wymuszą wejście na 100 i trafienie w SL na 110
+    data = {
+        'Open':   [102, 99, 108],
+        'High':   [103, 101, 111], # <-- Szczyt tej świecy uderza w SL
+        'Low':    [101, 98, 107],
+        'Close':  [101, 100, 109]
+    }
+    index = pd.to_datetime([datetime(2025, 1, 1), datetime(2025, 1, 2), datetime(2025, 1, 3)])
+    test_df = pd.DataFrame(data, index=index)
+    
+    async def mock_fetch_data(*args, **kwargs):
+        backtester._data = test_df
+        return True
+
+    monkeypatch.setattr(backtester, '_fetch_data', mock_fetch_data)
+
+    # 2. Stymuluj (Act)
+    results, trades_df, equity_curve = await backtester.run(
+        strategy_class=SellAndHoldStrategy,
+        symbol="TEST/USDT", timeframe="1d", start_date="2025-01-01", end_date="2025-01-03"
+    )
+
+    # 3. Sprawdź (Assert)
+    assert len(trades_df) == 1
+    trade = trades_df.iloc[0]
+    
+    assert trade['type'] == 'SHORT'
+    assert trade['entry_price'] == 100.0 # Wejście na zamknięciu drugiej świecy
+    assert trade['exit_price'] == pytest.approx(100.0 * 1.10) # Wyjście na poziomie SL
+    assert trade['profit_usd'] < 0 # To musi być strata
+
+
+@pytest.mark.asyncio
+async def test_short_trade_closes_on_take_profit(monkeypatch):
+    """Testuje, czy krótka pozycja jest poprawnie zamykana po osiągnięciu Take Profit."""
+    # 1. Skonfiguruj (Arrange)
+    settings_manager = SettingsManager()
+    backtester = Backtester(settings_manager)
+
+    # Dane, które wymuszą wejście na 100 i trafienie w TP na 80
+    data = {
+        'Open':   [102, 99, 85],
+        'High':   [103, 101, 86],
+        'Low':    [101, 98, 79], # <-- Dołek tej świecy uderza w TP
+        'Close':  [101, 100, 81]
+    }
+    index = pd.to_datetime([datetime(2025, 1, 1), datetime(2025, 1, 2), datetime(2025, 1, 3)])
+    test_df = pd.DataFrame(data, index=index)
+    
+    async def mock_fetch_data(*args, **kwargs):
+        backtester._data = test_df
+        return True
+
+    monkeypatch.setattr(backtester, '_fetch_data', mock_fetch_data)
+
+    # 2. Stymuluj (Act)
+    results, trades_df, equity_curve = await backtester.run(
+        strategy_class=SellAndHoldStrategy,
+        symbol="TEST/USDT", timeframe="1d", start_date="2025-01-01", end_date="2025-01-03"
+    )
+
+    # 3. Sprawdź (Assert)
+    assert len(trades_df) == 1
+    trade = trades_df.iloc[0]
+    
+    assert trade['type'] == 'SHORT'
+    assert trade['entry_price'] == 100.0
+    assert trade['exit_price'] == pytest.approx(100.0 * 0.80) # Wyjście na poziomie TP
+    assert trade['profit_usd'] > 0 # To musi być zysk

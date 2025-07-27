@@ -1,9 +1,9 @@
+import asyncio
 import logging
 import re
 import json
 import time
 import pandas as pd
-import asyncio  # <-- Upewnij się, że ten import jest obecny
 from typing import Tuple, Optional, Dict
 
 from core.analyzer import TechnicalAnalyzer, AnalysisResult
@@ -75,26 +75,45 @@ class AIPipeline:
                 
                 status_callback(f"Agent 3 (Taktyk): Szukanie setupu na {best_timeframe}...", True)
                 tactician_inputs = self.analyzer.prepare_tactician_inputs(analysis_result, best_timeframe, symbol)
-                tactician_inputs.update({"timeframe": best_timeframe,"single_tf_data_section": self.analyzer._format_data_for_prompt(analysis_result.all_timeframe_data.get(best_timeframe, {})),"current_price": self.analyzer._round_price_for_ai(analysis_result.current_price),"performance_insights_section": context_data['performance_insights'],"onchain_data_section": context_data['onchain_text'],"market_regime": context_data['market_regime'],"momentum_status": context_data['momentum_status'],"order_flow_status": context_data['order_flow_status'],"golden_examples_section": context_data['golden_examples_text']})
+                tactician_inputs.update({
+                    "timeframe": best_timeframe,
+                    "single_tf_data_section": self.analyzer._format_data_for_prompt(analysis_result.all_timeframe_data.get(best_timeframe, {})),
+                    "current_price": self.analyzer._round_price_for_ai(analysis_result.current_price),
+                    "performance_insights_section": context_data['performance_insights'],
+                    "onchain_data_section": context_data['onchain_text'],
+                    "market_regime": context_data['market_regime'],
+                    "momentum_status": context_data['momentum_status'],
+                    "order_flow_status": context_data['order_flow_status'],
+                    "golden_examples_section": context_data['golden_examples_text']
+                })
                 tactician_prompt = TACTICIAN_PROMPT_TEMPLATE.format(**tactician_inputs)
                 
                 self.ai_client.clear_chat_history()
                 self.ai_client.add_message("user", tactician_prompt)
                 final_response_text = await self.ai_client.get_chat_completion_async()
                 parsed_response = self.ai_client.przetworz_odpowiedz(final_response_text)
+                
                 programmatic_sr_str = tactician_inputs.get("programmatic_sr_json", "{}")
-                try: parsed_response.parsed_data['support_resistance'] = json.loads(programmatic_sr_str)
-                except json.JSONDecodeError: parsed_response.parsed_data['support_resistance'] = {"support": [], "resistance": []}
+                try:
+                    parsed_response.parsed_data['support_resistance'] = json.loads(programmatic_sr_str)
+                except json.JSONDecodeError:
+                    parsed_response.parsed_data['support_resistance'] = {"support": [], "resistance": []}
 
                 # Etap 5: Scentralizowany "Konstruktor Setupu" i logowanie
                 if parsed_response.is_valid and parsed_response.parsed_data.get('bias') in ['Bullish', 'Bearish']:
                     ai_reco = parsed_response.parsed_data
                     strategy_params = self.analyzer.settings.get('strategies.ai_clone', {})
                     atr_multiplier = strategy_params.get('atr_multiplier_sl', 1.5)
-                    rr_ratio = strategy_params.get('risk_reward_ratio', 2.5)
-                    best_df_with_indicators = self.analyzer.indicator_service.calculate_all(analysis_result.all_ohlcv_dfs[best_timeframe].copy())
+                    
+                    best_df = analysis_result.all_ohlcv_dfs.get(best_timeframe)
+                    if best_df is None or best_df.empty:
+                        logger.warning(f"Brak danych OHLCV dla wybranego interwału {best_timeframe}, nie można skonstruować setupu.")
+                        return parsed_response, analysis_result, best_timeframe, context_data
+                        
+                    best_df_with_indicators = self.analyzer.indicator_service.calculate_all(best_df.copy())
                     atr_key_generator = IndicatorKeyGenerator(self.analyzer.settings.get('analysis.indicator_params'))
                     atr_key = atr_key_generator.atr()
+                    
                     last_atr = 0
                     if atr_key in best_df_with_indicators.columns and pd.notna(best_df_with_indicators[atr_key].iloc[-1]):
                         last_atr = best_df_with_indicators[atr_key].iloc[-1]
@@ -103,14 +122,36 @@ class AIPipeline:
                         entry_price = ai_reco['key_level']
                         trade_type = 'Long' if ai_reco['bias'] == 'Bullish' else 'Short'
                         stop_loss = entry_price - (last_atr * atr_multiplier) if trade_type == 'Long' else entry_price + (last_atr * atr_multiplier)
-                        take_profit = entry_price + (abs(entry_price - stop_loss) * rr_ratio) if trade_type == 'Long' else entry_price - (abs(entry_price - stop_loss) * rr_ratio)
-                        calculated_rr = (abs(take_profit - entry_price) / abs(entry_price - stop_loss)) if abs(entry_price - stop_loss) > 0 else 0
+                        
+                        risk_amount = abs(entry_price - stop_loss)
+                        rr_ratio_tp1 = strategy_params.get('risk_reward_ratio_tp1', 1.5)
+                        rr_ratio_tp2 = strategy_params.get('risk_reward_ratio_tp2', 3.0)
+                        
+                        take_profit_1 = entry_price + (risk_amount * rr_ratio_tp1) if trade_type == 'Long' else entry_price - (risk_amount * rr_ratio_tp1)
+                        take_profit = entry_price + (risk_amount * rr_ratio_tp2) if trade_type == 'Long' else entry_price - (risk_amount * rr_ratio_tp2)
+                        
+                        calculated_rr_tp2 = (abs(take_profit - entry_price) / risk_amount) if risk_amount > 0 else 0
                         min_rr_ratio = self.ai_client.settings.get('ai.min_rr_ratio', 2.0)
 
-                        if calculated_rr >= min_rr_ratio:
-                            setup_data = {"status": "potential", "type": trade_type, "trigger_text": f"Obserwuj reakcję ceny w pobliżu kluczowego poziomu {entry_price:.4f}", "entry": entry_price, "stop_loss": stop_loss, "take_profit": [take_profit], "confidence": ai_reco['confidence'], "r_r_ratio": rr_ratio}
+                        if calculated_rr_tp2 >= min_rr_ratio:
+                            setup_data = {
+                                "status": "potential", "type": trade_type,
+                                "trigger_text": f"Obserwuj reakcję ceny w pobliżu kluczowego poziomu {entry_price:.4f}",
+                                "entry": entry_price, "stop_loss": stop_loss, "take_profit": [take_profit],
+                                "take_profit_1": take_profit_1, "confidence": ai_reco['confidence'], "r_r_ratio": calculated_rr_tp2
+                            }
                             parsed_response.parsed_data['setup'] = setup_data
-                            trade_log_data = {"timestamp": time.time(), "symbol": symbol, "interval": best_timeframe, "type": trade_type, "confidence": ai_reco['confidence'], "market_regime": context_data.get('market_regime'), "momentum_status": context_data.get('momentum_status'), "entry_price": entry_price, "stop_loss": stop_loss, "take_profit": take_profit, "exchange": exchange}
+                            
+                            trade_log_data = {
+                                "timestamp": time.time(), "symbol": symbol, "interval": best_timeframe,
+                                "type": trade_type, "confidence": ai_reco['confidence'],
+                                "market_regime": context_data.get('market_regime'),
+                                "momentum_status": context_data.get('momentum_status'),
+                                "entry_price": entry_price, "stop_loss": stop_loss,
+                                "take_profit": take_profit, "take_profit_1": take_profit_1,
+                                "exchange": exchange,
+                                "full_ai_response_json": json.dumps(parsed_response.parsed_data)
+                            }
                             
                             if not self.db_manager.does_trade_exist(trade_log_data):
                                 self.db_manager.log_trade(trade_log_data)

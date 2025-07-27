@@ -93,3 +93,48 @@ async def test_pending_trade_expires_if_not_triggered(db_manager, monkeypatch):
     trades = db_manager.get_all_trades(filters={'symbol': 'EXPIRE/USDT'})
     assert len(trades) == 1
     assert trades[0]['result'] == 'WYGASŁY'
+
+@pytest.mark.asyncio
+async def test_pending_short_trade_is_activated(db_manager, monkeypatch):
+        """
+        Testuje, czy oczekujący setup typu Short jest poprawnie aktywowany,
+        gdy cena osiągnie poziom wejścia.
+        """
+        # 1. Skonfiguruj (Arrange)
+        settings_manager = SettingsManager()
+        analyzer = TechnicalAnalyzer(settings_manager, db_manager)
+        lock = asyncio.Lock()
+        paper_trader = PaperTrader(db_manager, analyzer, lock)
+
+        # Zapisujemy do bazy setup typu Short
+        trade_data = {
+            "timestamp": time.time(), "symbol": "SHORT/USDT", "interval": "1h",
+            "type": "Short", "entry_price": 100.0, "stop_loss": 110.0, "take_profit": 90.0
+        }
+        db_manager.log_trade(trade_data)
+
+        # Przygotowujemy dane OHLCV, które symulują dotknięcie ceny wejścia od dołu
+        # Szczyt świecy (High) jest powyżej ceny wejścia
+        mock_ohlcv_data = {
+            'Open': [98], 'High': [101], 'Low': [97], 'Close': [99]
+        }
+        mock_df = pd.DataFrame(mock_ohlcv_data, index=[pd.to_datetime(datetime.now())])
+
+        # Mockujemy funkcję pobierającą dane
+        async def mock_fetch_ohlcv(*args, **kwargs):
+            # Dla tego testu wystarczy zwrócić ostatnią świecę
+            return mock_df
+
+        monkeypatch.setattr(analyzer.exchange_service, 'fetch_ohlcv', mock_fetch_ohlcv)
+        
+        # 2. Stymuluj (Act)
+        await paper_trader.check_pending_trades()
+
+        # 3. Sprawdź (Assert)
+        trades = db_manager.get_all_trades(filters={'symbol': 'SHORT/USDT'})
+        assert len(trades) == 1
+        
+        # Najważniejsze: sprawdzamy, czy transakcja została oznaczona jako aktywna
+        assert trades[0]['is_active'] == 1
+        # Wynik wciąż powinien być 'PENDING', bo nie trafiliśmy ani w SL, ani w TP
+        assert trades[0]['result'] == 'PENDING'

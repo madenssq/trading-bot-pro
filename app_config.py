@@ -79,7 +79,9 @@ DEFAULT_SETTINGS = {
             "rsi_overbought": 75,
             "atr_len": 14,
             "atr_multiplier_sl": 1.5,
-            "risk_reward_ratio": 2.0
+            "risk_reward_ratio_tp1": 1.5, # R:R dla pierwszego, częściowego zysku
+            "risk_reward_ratio_tp2": 3.0, # R:R dla drugiego, ostatecznego zysku
+            "partial_close_pct": 50
         }
     },
     "logging": {
