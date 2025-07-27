@@ -1,0 +1,18 @@
+# Pliki ze środowiska wirtualnego
+venv/
+/venv/
+__pycache__/
+*.pyc
+
+# Plik z sekretami
+.env
+
+# Pliki generowane przez system i edytory
+.DS_Store
+.vscode/
+
+# Katalog z danymi użytkownika (baza danych, logi, cache)
+data/
+
+# Pliki generowane przez Firebase
+firebase-adminsdk.json

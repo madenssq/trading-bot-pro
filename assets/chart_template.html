@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8">
+    <title>Wykres Analityczny</title>
+    <!-- 
+        Biblioteka Plotly.js jest ładowana z CDN, aby szablon był lekki.
+        Można ją również wstrzyknąć lokalnie z kodu Pythona, jeśli jest taka potrzeba.
+    -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        /* Pełnoekranowy, responsywny kontener na wykres */
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            background-color: #1a1a1a; /* Ciemne tło na start, pasujące do motywu */
+            width: 100%; 
+            height: 100%; 
+        }
+        #chart { 
+            width: 100%; 
+            height: 100%; 
+        }
+        /* Prosty animowany loader, który będzie widoczny podczas ładowania danych */
+        .loader {
+            border: 8px solid #333; /* Ciemniejszy szary dla tła kółka */
+            border-top: 8px solid #7aa2f7; /* Kolor akcentu z naszego motywu */
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1.5s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin-top: -30px; /* Połowa wysokości */
+            margin-left: -30px; /* Połowa szerokości */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Kontener na wykres, który początkowo zawiera tylko loader -->
+    <div id="chart">
+        <div class="loader"></div>
+    </div>
+
+    <script>
+        // Ta globalna funkcja zostanie wywołana z kodu Pythona, aby zainicjować ładowanie danych.
+        function loadAndRenderChart(jsonFilePath) {
+            // Używamy fetch API do asynchronicznego wczytania danych z lokalnego pliku JSON
+            // Dodajemy '?' z unikalnym timestampem, aby zapobiec keszowaniu pliku przez przeglądarkę
+            fetch(jsonFilePath + '?t=' + new Date().getTime())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(figureData => {
+                    const chartDiv = document.getElementById('chart');
+                    chartDiv.innerHTML = ''; // Usuń loader
+                    Plotly.newPlot('chart', figureData.data, figureData.layout, {responsive: true});
+                    console.log("Wykres został pomyślnie wyrenderowany z pliku: " + jsonFilePath);
+                })
+                .catch(error => {
+                    console.error('Błąd podczas ładowania lub renderowania danych wykresu:', error);
+                    document.getElementById('chart').innerHTML = '<h1>Błąd ładowania danych wykresu.</h1>';
+                });
+        }
+    </script>
+</body>
+</html>

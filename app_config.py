@@ -1,0 +1,100 @@
+import os
+
+# --- ŚCIEŻKI PLIKÓW I KATALOGÓW ---
+
+# Główne katalogi
+DATA_DIR = "data"
+LOGS_DIR = os.path.join(DATA_DIR, "logs")
+CONFIG_DIR = os.path.join(DATA_DIR, "config")
+
+# Pliki konfiguracyjne i danych
+USER_ID_FILE = os.path.join(DATA_DIR, "user_id.json")
+SYMBOLS_CACHE_FILE = os.path.join(DATA_DIR, "symbols_cache.json")
+LOG_FILE = os.path.join(LOGS_DIR, "trading_bot.log")
+USER_SETTINGS_FILE = os.path.join(CONFIG_DIR, "user_settings.json")
+COOLDOWN_CACHE_FILE = os.path.join(DATA_DIR, "cooldown_cache.json")
+
+# Klucz do uwierzytelniania z Firebase
+FIREBASE_ADMIN_SDK_KEY_PATH = "firebase-adminsdk.json"
+
+
+# --- USTAWIENIA GIEŁD I DANYCH ---
+
+# Lista giełd, z których CoinManager będzie pobierał dane
+SUPPORTED_EXCHANGES = ["BINANCE", "BYBIT", "KUCOIN"]
+
+# Standardowe ramy czasowe (interwały) używane w całej aplikacji
+RAMY_CZASOWE = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w']
+
+# Czas ważności pamięci podręcznej dla symboli (w sekundach)
+# 24 godziny * 60 minut * 60 sekund = 1 dzień
+CACHE_MAX_AGE_SECONDS = 24 * 60 * 60
+
+
+# --- DOMYŚLNE USTAWIENIA APLIKACJI ---
+
+DEFAULT_SETTINGS = {
+    "app": {
+        "theme": "ciemny"
+    },
+    "ai": {
+        "url": "http://localhost:1234/v1/chat/completions",
+        "model": "local-model",
+        "temperature": 0.6,
+        "max_tokens": 8096,
+        "timeout": 180,
+        "min_rr_ratio": 2.0 # Minimalny stosunek R:R
+    },
+    "ssnedam": {
+        "enabled": False,
+        "group": "Ulubione",
+        "interval_minutes": 5,
+        "alert_interval": "4h",
+        "cooldown_minutes": 60,
+        "scanner_prominence": 0.5, # Czułość skanera (prominencja)
+        "scanner_distance": 10, # Czułość skanera (dystans)
+        "setup_expiration_candles": 12 # NOWY PARAMETR: Po ilu świecach setup wygasa
+    },
+    "ai_context_modules": {
+        "use_market_regime": True,
+        "use_order_flow": True,
+        "use_onchain_data": True,
+        "use_performance_insights": True
+    },
+    "strategies": {
+        "ai_clone": {
+            "ema_fast_len": 21,
+            "ema_slow_len": 50,
+            "rsi_len": 14,
+            "rsi_overbought": 75,
+            "atr_len": 14,
+            "atr_multiplier_sl": 1.5,
+            "risk_reward_ratio": 2.0
+        }
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    },
+    "telegram": {
+        "api_token": "",
+        "chat_id": ""
+    }
+}
+
+
+
+# --- STATYCZNE DANE APLIKACJI ---
+
+# Definicje terminów technicznych używane w podpowiedziach (tooltips)
+DEFINITIONS = {
+    "RSI": "Relative Strength Index (Wskaźnik Siły Względnej) - wskaźnik pędu mierzący szybkość i zmianę ruchów cen. Wartości > 70 oznaczają wykupienie, a < 30 wyprzedanie.",
+    "MACD": "Moving Average Convergence/Divergence - wskaźnik trendu i pędu. Przecięcie linii MACD i linii sygnałowej generuje sygnały kupna/sprzedaży.",
+    "EMA": "Exponential Moving Average (Wykładnicza Średnia Krocząca) - średnia cena z określonego okresu, która przykłada większą wagę do nowszych danych.",
+    "BOLINGER BANDS": "Wstęgi Bollingera - wskaźnik zmienności składający się z środkowej średniej kroczącej oraz dwóch zewnętrznych wstęg (odchylenia standardowe).",
+    "OBV": "On-Balance Volume - wskaźnik mierzący skumulowaną presję kupna i sprzedaży. Rosnący OBV potwierdza siłę trendu wzrostowego.",
+    "ATR": "Average True Range - miara zmienności rynkowej. Wyższy ATR oznacza większą zmienność i potencjalnie większe ruchy cenowe.",
+    "PIVOT POINTS": "Punkty Obrotu - matematycznie obliczone, obiektywne poziomy wsparcia (S1, S2, S3) i oporu (R1, R2, R3).",
+    "PRICE ACTION": "Analiza samego ruchu ceny na wykresie, formacji świecowych oraz struktury rynku bez użycia wskaźników.",
+    "DYWERGENCJA": "Rozbieżność między ruchem ceny a wskaźnikiem (np. cena robi wyższy szczyt, a RSI niższy). Często zapowiada odwrócenie trendu."
+}

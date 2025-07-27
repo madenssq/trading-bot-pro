@@ -1,0 +1,68 @@
+[
+  {
+    "coin": "ATOMUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 16:40",
+    "summary": "<i>No response from AI</i>"
+  },
+  {
+    "coin": "KSMUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 16:51",
+    "summary": "<i>No response from AI</i>"
+  },
+  {
+    "coin": "KSMUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 16:53",
+    "summary": "<i>No response from AI</i>"
+  },
+  {
+    "coin": "BTCUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 17:13",
+    "summary": "<i>No response from AI</i>"
+  },
+  {
+    "coin": "BTCUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 17:17",
+    "summary": "<i>No response from AI</i>"
+  },
+  {
+    "coin": "BTCUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 21:35",
+    "summary": "\n            <div style='color:orange;padding:10px;border:1px solid orange;border-radius:5px;'>\n                ❌ Brak odpowiedzi od AI. Sprawdź:<br>\n                1. Czy LM Studio jest uruchomione<br>\n                2. Czy wybrany model jest poprawny<br>\n                3. Czy zapytanie było poprawne\n            </div>\n            "
+  },
+  {
+    "coin": "BOMEUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 21:38",
+    "summary": "\n            <div style='color:orange;padding:10px;border:1px solid orange;border-radius:5px;'>\n                ❌ Brak odpowiedzi od AI. Sprawdź:<br>\n                1. Czy LM Studio jest uruchomione<br>\n                2. Czy wybrany model jest poprawny<br>\n                3. Czy zapytanie było poprawne\n            </div>\n            "
+  },
+  {
+    "coin": "BTCUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 21:43",
+    "summary": "<div style=\"color:#ccc;\"><think></div><br><div style=\"color:#ccc;\">Okay, let's start by analyzing the BTCUSDT data from Binance based on the provided technical indicators. The user wants a detailed breakdown into four sections: trend analysis, key support/resistance levels, entry/exit points, and risk management</div>"
+  },
+  {
+    "coin": "BTCUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 21:55",
+    "summary": "\n        <div style='\n            color: #ffcc00;\n            background-color: #3a1a00;\n            padding: 12px;\n            border-radius: 8px;\n            border-left: 4px solid #ff6600;\n            margin: 10px 0;\n        '>\n            <div style='font-weight: bold; font-size: 16px; margin-bottom: 8px;'>\n                ❌ Problem z odpowiedzią AI\n            </div>\n            <div>Brak odpowiedzi od AI</div>\n            <div style='margin-top: 10px; font-size: 12px;'>\n                Sprawdź połączenie z LM Studio i wybrany model\n            </div>\n        </div>\n        "
+  },
+  {
+    "coin": "WOOUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 22:44",
+    "summary": "\n        <div style='\n            color: #ffcc00;\n            background-color: #3a1a00;\n            padding: 12px;\n            border-radius: 8px;\n            border-left: 4px solid #ff6600;\n            margin: 10px 0;\n        '>\n            <div style='font-weight: bold; font-size: 16px; margin-bottom: 8px;'>\n                ❌ Problem z odpowiedzią AI\n            </div>\n            <div>Brak odpowiedzi od AI</div>\n            <div style='margin-top: 10px; font-size: 12px;'>\n                Sprawdź połączenie z LM Studio i wybrany model\n            </div>\n        </div>\n        "
+  },
+  {
+    "coin": "BTCUSDT",
+    "exchange": "BINANCE",
+    "datetime": "2025-06-22 22:45",
+    "summary": "\n        <div style='\n            color: #ffcc00;\n            background-color: #3a1a00;\n            padding: 12px;\n            border-radius: 8px;\n            border-left: 4px solid #ff6600;\n            margin: 10px 0;\n        '>\n            <div style='font-weight: bold; font-size: 16px; margin-bottom: 8px;'>\n                ❌ Problem z odpowiedzią AI\n            </div>\n            <div>Brak odpowiedzi od AI</div>\n            <div style='margin-top: 10px; font-size: 12px;'>\n                Sprawdź połączenie z LM Studio i wybrany model\n            </div>\n        </div>\n        "
+  }
+]

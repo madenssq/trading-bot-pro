@@ -1,0 +1,22 @@
+# --- Główne zależności ---
+ccxt==4.3.56
+pandas==2.2.2
+pandas-ta
+httpx==0.27.0
+firebase-admin==6.4.0
+
+# --- Interfejs Graficzny i Asynchroniczność ---
+PyQt6==6.7.0
+PyQt6-WebEngine==6.7.0
+qasync==0.27.0
+pyqtgraph
+
+# --- Analiza i Dane ---
+scipy
+tradingview-ta==3.3.0 # Zostaw, jeśli używasz w dashboardzie
+scikit-learn
+
+# --- Dodatki ---
+plyer==2.1.0 # Dla powiadomień systemowych
+
+requests

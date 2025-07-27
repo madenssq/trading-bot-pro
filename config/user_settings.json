@@ -1,0 +1,76 @@
+{
+    "app": {
+        "theme": "ciemny",
+        "language": "pl",
+        "background_path": "D:/zdjeciaG (2)/13 - 7 (1).jpg"
+    },
+    "ai": {
+        "url": "http://localhost:1234/v1/chat/completions",
+        "timeout": 400,
+        "model": "microsoft/phi-4",
+        "max_tokens": 8000,
+        "temperature": 0.6
+    },
+    "analysis": {
+        "default_interval": "4h",
+        "warning_threshold": 0.65,
+        "multi_timeframe_intervals": [
+            "1h",
+            "4h",
+            "1d"
+        ],
+        "indicator_params": {
+            "atr_length": 14,
+            "rsi_length": 14,
+            "ema_fast_length": 50,
+            "ema_slow_length": 200,
+            "macd_fast": 12,
+            "macd_slow": 26,
+            "macd_signal": 9,
+            "bbands_length": 20,
+            "bbands_std": 2.0
+        },
+        "default_mode": "Antycypacja"
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        "max_size_mb": 10,
+        "backup_count": 3
+    },
+    "api_keys": {
+        "binance_api_key": "TWOJ_KLUCZ_API",
+        "binance_api_secret": "TWOJ_SEKRET_API"
+    },
+    "backtester": {
+        "default_initial_capital": 10000.0,
+        "default_fee_pct": 0.1,
+        "risk_management": {
+            "method": "fixed_fractional",
+            "risk_per_trade_pct": 1.5
+        },
+        "strategies": {
+            "residual_mean_reversion": {
+                "id": "residual_mean_reversion",
+                "name": "Arbitraż Statystyczny (Residua vs BTC)",
+                "benchmark_symbol": "BTC/USDT",
+                "lookback_period": 60,
+                "z_score_entry": 2.0,
+                "z_score_exit": 0.5,
+                "ema_trend_filter_length": 200,
+                "volatility_filter": {
+                    "enabled": true,
+                    "atr_length": 14,
+                    "atr_ma_length": 50,
+                    "atr_multiplier": 0.5
+                }
+            }
+        }
+    },
+    "ssnedam": {
+        "enabled": true,
+        "group": "Do Obserwacji",
+        "interval_minutes": 5,
+        "alert_interval": "4h"
+    }
+}
