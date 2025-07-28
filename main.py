@@ -7,6 +7,19 @@ import asyncio
 import logging
 import logging.handlers
 import traceback
+from dotenv import load_dotenv
+load_dotenv() 
+import warnings # <-- NOWY IMPORT
+
+# --- NOWY BLOK KODU ---
+# Ignoruj specyficzne, nieszkodliwe ostrzeżenie (FutureWarning)
+# generowane przez bibliotekę pyqtgraph z powodu zmian w bibliotece pandas.
+warnings.filterwarnings(
+    'ignore', 
+    message="Series.__getitem__ treating keys as positions is deprecated.*",
+    category=FutureWarning,
+    module='pyqtgraph'
+)
 
 os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = "9222"
 

@@ -29,37 +29,108 @@ Jesteś strategiem rynkowym. Na podstawie sentymentu z wiadomości oraz danych z
 Odpowiedz tylko i wyłącznie jednym z trzech zwrotów: 'BIAS: Bullish', 'BIAS: Bearish' lub 'BIAS: Neutral'. Bez żadnych dodatkowych słów.
 """
 
+DEVILS_ADVOCATE_PROMPT_TEMPLATE = """
+--- DANE WEJŚCIOWE ---
+# Kontekst Ogólny
+- Ogólny reżim rynkowy (BTC/ETH 1D): {market_regime}
+# Kontekst Lokalny (Interwał {timeframe})
+- Status Przepływu Zleceń (Order Flow): {order_flow_status}
+- Trend średnioterminowy: {intermediate_trend}
+- Kluczowe poziomy S/R: {programmatic_sr_json}
+- Aktualna cena: ${current_price:,.4f}
+
+--- TWOJE ZADANIE: KRYTYKA ---
+Jesteś analitykiem-kontrarianem, "adwokatem diabła". Twoim zadaniem jest znalezienie słabości w dominującej narracji. Główny reżim rynkowy sugeruje kierunek {bias_suggestion}.
+Na podstawie powyższych danych, sformułuj **najsilniejszy możliwy kontrargument**, dlaczego zagranie w kierunku {bias_suggestion} może się nie udać. Skup się na danych lokalnych (Order Flow, S/R, Price Action), które przeczą głównemu trendowi.
+Twoja odpowiedź musi być zwięzła (1-2 zdania). Nie używaj formatowania JSON.
+"""
+
 TACTICIAN_PROMPT_TEMPLATE = """
 --- DANE WEJŚCIOWE ---
 # Kontekst Ogólny
 - Wnioski z Autorefleksji: {performance_insights_section}
-- Dane On-Chain (Funding/OI): {onchain_data_section}
 - Ogólny reżim rynkowy (BTC/ETH 1D): {market_regime}
-- Status pędu rynku (1D): {momentum_status}
 # Kontekst Lokalny (Interwał {timeframe})
 - Status Przepływu Zleceń (Order Flow): {order_flow_status}
-- Trend średnioterminowy: {intermediate_trend}
-- Status impulsu dojścia (ostatnie 5 świec): {approach_momentum_status}
 - Kluczowe poziomy S/R: {programmatic_sr_json}
-- Kluczowe poziomy Volume Profile: {volume_profile_json}
-- Kluczowe poziomy Fibonacciego: {fibonacci_data}
 - Aktualna cena: ${current_price:,.4f}
+# Analiza Kontrariańska
+- Kontrargument "Adwokata Diabła": {devils_advocate_argument}
 
---- TWOJE ZADANIE: ANALIZA I REKOMENDACJA ---
-Jesteś elitarnym analitykiem. Twoim zadaniem jest przeanalizowanie wszystkich DANYCH WEJŚCIOWYCH i udzielenie zwięzłej rekomendacji.
+--- TWOJE ZADANIE: OSTATECZNY WERDYKT ---
+Jesteś elitarnym, bezstronnym analitykiem. Twoim zadaniem jest wydanie ostatecznej, obiektywnej rekomendacji na podstawie WSZYSTKICH powyższych danych.
+1.  **Dokonaj Syntezy:** Przeanalizuj wszystkie dane, biorąc pod uwagę zarówno główną tezę, jak i przedstawiony kontrargument.
+2.  **Określ Kierunek (BIAS):** Zdecyduj, czy po uwzględnieniu wszystkiego, sentyment jest 'Bullish', 'Bearish', czy 'Neutral'.
+3.  **Wskaż Kluczowy Poziom:** Zidentyfikuj jeden, najważniejszy poziom cenowy kluczowy dla Twojej analizy.
 
-1.  **Dokonaj Syntezy:** Przeanalizuj wszystkie dane i sformułuj główny wniosek.
-2.  **Określ Kierunek (BIAS):** Zdecyduj, czy ogólny sentyment dla tego coina na tym interwale jest 'Bullish', 'Bearish', czy 'Neutral'.
-3.  **Wskaż Kluczowy Poziom:** Zidentyfikuj jeden, najważniejszy poziom cenowy (wsparcie lub opór), który jest kluczowy dla Twojej analizy.
-
-Wygeneruj **tylko i wyłącznie** blok kodu markdown zawierający obiekt JSON, rygorystycznie przestrzegając poniższego formatu. Nie dodawaj żadnych dodatkowych pól.
+Wygeneruj **tylko i wyłącznie** blok kodu markdown zawierający obiekt JSON, rygorystycznie przestrzegając poniższego formatu.
 ```json
-
-
 {{
-    "key_conclusions": "...",
+    "key_conclusions": "ZWIĘZŁE UZASADNIENIE TWOJEJ DECYCJI (1-2 ZDANIA). TO POLE JEST OBOWIĄZKOWE.",
     "bias": "<'Bullish', 'Bearish' lub 'Neutral'>",
     "key_level": <float, kluczowy poziom cenowy do obserwacji>,
-    "confidence": <integer od 1 do 10, Twoja pewność co do tego BIASu>
+    "confidence": <integer od 1 do 10, Twoja ostateczna pewność co do tego BIASu>
 }}
+"""
+
+CONTRARIAN_PROMPT_TEMPLATE = """
+--- DANE WEJŚCIOWE ---
+
+Kontekst Ogólny
+Główny reżim rynkowy (BTC/ETH 1D): {market_regime}
+
+Kontekst Lokalny (Interwał {timeframe})
+Status Przepływu Zleceń (Order Flow): {order_flow_status}
+
+Kluczowe poziomy S/R: {programmatic_sr_json}
+
+Aktualna cena: ${current_price:,.4f}
+
+--- TWOJE ZADANIE: ZNAJDŹ OKAZJĘ KONTRARIAŃSKĄ ---
+Jesteś elitarnym analitykiem specjalizującym się w zagraniach kontrariańskich o wysokim prawdopodobieństwie. Twoim zadaniem jest znalezienie setupu PRZECIWNEGO do głównego reżimu rynkowego.
+Przeanalizuj dane i odpowiedz TYLKO, jeśli znajdziesz setup spełniający WSZYSTKIE poniższe kryteria:
+
+Lokalna Słabość/Siła: Order Flow musi wyraźnie pokazywać presję przeciwną do głównego trendu.
+
+Kluczowy Poziom: Cena musi znajdować się BARDZO BLISKO silnego, programistycznie wyznaczonego poziomu S/R.
+
+Wysoka Pewność: Musisz być bardzo pewny tego setupu (confidence >= 8).
+
+Jeśli WSZYSTKIE kryteria są spełnione, wygeneruj blok JSON. Jeśli choć jedno nie jest, odpowiedz tylko słowem "BRAK".
+
+JSON
+
+{{
+    "key_conclusions": "UZASADNIENIE, DLACZEGO TO DOBRA OKAZJA KONTRARIAŃSKA (1-2 ZDANIA). TO POLE JEST OBOWIĄZKOWE.",
+    "bias": "<'Bullish' lub 'Bearish', przeciwny do głównego reżimu>",
+    "key_level": <float, kluczowy poziom S/R, przy którym należy działać>,
+    "confidence": <integer, MUSI być >= 8>
+}}
+"""
+
+EXIT_ADVISOR_PROMPT_TEMPLATE = """
+--- DANE WEJŚCIOWE ---
+
+Kontekst Pozycji
+Typ Pozycji: {trade_type}
+
+Cena Wejścia: ${entry_price:,.4f}
+
+Aktualna Cena: ${current_price:,.4f}
+
+Zysk (niezrealizowany): +{unrealized_profit_pct:.2f}%
+
+Dane z Niskiego Interwału ({low_timeframe})
+Pozycja RSI: {rsi_value:.2f}
+
+Status MACD: {macd_status}
+
+Zmienność (ATR %): {atr_pct:.2f}%
+
+--- TWOJE ZADANIE ---
+Jesteś analitykiem specjalizującym się w identyfikacji słabnięcia trendu. Twoim jedynym zadaniem jest ocena, czy należy zamknąć pozycję, aby chronić zysk.
+
+Czy na podstawie powyższych danych z niskiego interwału widzisz wyraźne sygnały słabości lub potencjalnego odwrócenia trendu, które sugerują natychmiastowe zamknięcie pozycji w celu ochrony zysku?
+
+Odpowiedz tylko i wyłącznie jednym słowem: 'TAK' lub 'NIE'.
 """

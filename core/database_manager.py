@@ -195,6 +195,22 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logger.error(f"Błąd aktywacji transakcji: {e}")
 
+    def get_trade_by_id(self, trade_id: int) -> Optional[Dict[str, Any]]:
+        """Pobiera pojedynczą transakcję z bazy na podstawie jej ID."""
+        if not self.conn: return None
+        query = "SELECT * FROM trades_log WHERE id = ?"
+        try:
+            self.conn.row_factory = sqlite3.Row
+            cursor = self.conn.cursor()
+            cursor.execute(query, (trade_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        except sqlite3.Error as e:
+            logger.error(f"Błąd pobierania transakcji o ID {trade_id}: {e}")
+            return None
+        finally:
+            self.conn.row_factory = None
+
     def close(self):
         if self.conn: self.conn.close(); self.conn = None; logger.info("Połączenie z bazą danych zostało zamknięte.")
 

@@ -152,13 +152,20 @@ def _draw_setup_zones(context, plot, setup_data: dict):
         context.plotted_items['setup'].append(sl_region)
 
     if entry and take_profit_levels:
-        target_tp = take_profit_levels[-1]
-        tp_region = pg.LinearRegionItem(values=[entry, target_tp], orientation='horizontal', brush=QColor(46, 204, 113, 40), pen=pg.mkPen(None))
-        plot.addItem(tp_region)
-        context.plotted_items['setup'].append(tp_region)
+        # --- NOWA, ODPORNA LOGIKA ---
+        # Sprawdzamy, czy take_profit jest listą. Jeśli nie, tworzymy z niego listę.
+        if not isinstance(take_profit_levels, list):
+            take_profit_levels = [take_profit_levels]
+        
+        # Rysujemy strefę tylko jeśli lista nie jest pusta
+        if take_profit_levels:
+            target_tp = take_profit_levels[-1]
+            tp_region = pg.LinearRegionItem(values=[entry, target_tp], orientation='horizontal', brush=QColor(46, 204, 113, 40), pen=pg.mkPen(None))
+            plot.addItem(tp_region)
+            context.plotted_items['setup'].append(tp_region)
 
     _draw_sl_tp_lines(context, plot, setup_data)
-
+    
 def _draw_sl_tp_lines(context, plot, setup_data: dict):
     if 'setup' not in context.plotted_items: context.plotted_items['setup'] = []
     if entry := setup_data.get('entry'):
@@ -207,7 +214,6 @@ def populate_indicator_summary_table(all_timeframe_data: dict, table_widget: QTa
     table_widget.resizeRowsToContents()
 
 def generate_html_from_analysis(parsed_data: dict) -> str:
-
     if not parsed_data:
         return "<h3>Błąd</h3><p>Otrzymano puste dane do wygenerowania raportu.</p>"
 
@@ -220,7 +226,11 @@ def generate_html_from_analysis(parsed_data: dict) -> str:
             else: return f"${price:,.4g}"
         except (ValueError, TypeError): return str(p)
 
-    conclusions = parsed_data.get('key_conclusions', 'Brak wniosków.')
+    # --- NOWA, INTELIGENTNA LOGIKA ---
+    # Jeśli AI nie dało wniosków, informujemy o tym.
+    conclusions = parsed_data.get('key_conclusions', '').strip()
+    if not conclusions or conclusions.lower() in ["brak wniosków.", "brak wniosków"]:
+        conclusions = "<i>AI nie dostarczyło szczegółowego uzasadnienia.</i>"
     html = f"<h3>Kluczowe Wnioski Techniczne</h3><p>{conclusions}</p>"
 
     sr_data = parsed_data.get('support_resistance', {})
@@ -228,39 +238,51 @@ def generate_html_from_analysis(parsed_data: dict) -> str:
     resistances = sr_data.get('resistance', [])
     html += "<h3>Analiza Kontekstowa (Price Action)</h3>"
     if supports:
-        html += "<p><b>Poziomy Wsparcia:</b><br>" + "<br>".join([f"- {format_price(s)}" for s in supports]) + "</p>"
+        html += "<p><b>Poziomy Wsparcia:</b> " + ", ".join([f"{format_price(s)}" for s in supports]) + "</p>"
     if resistances:
-        html += "<p><b>Poziomy Oporu:</b><br>" + "<br>".join([f"- {format_price(r)}" for r in resistances]) + "</p>"
+        html += "<p><b>Poziomy Oporu:</b> " + ", ".join([f"{format_price(r)}" for r in resistances]) + "</p>"
 
     html += "<h3>Najlepszy Setup (do obserwacji)</h3>"
     setup = parsed_data.get('setup')
 
     if setup and isinstance(setup, dict):
+        # ... (logika statusu bez zmian) ...
         status = setup.get('status')
-        if status == 'immediate':
-            html += "<p><b>Status:</b> <span style='color:#2ECC71;'>OKAZJA NATYCHMIASTOWA</span></p>"
-        elif status == 'potential':
-            html += "<p><b>Status:</b> <span style='color:#F1C40F;'>SETUP POTENCJALNY (do obserwacji)</span></p>"
+        if status == 'immediate': html += "<p><b>Status:</b> <span style='color:#2ECC71;'>OKAZJA NATYCHMIASTOWA</span></p>"
+        elif status == 'potential': html += "<p><b>Status:</b> <span style='color:#F1C40F;'>SETUP POTENCJALNY (do obserwacji)</span></p>"
+        
+        # --- NOWA, INTELIGENTNA LOGIKA ---
+        # Jeśli AI nie dało triggera, tworzymy go sami na podstawie key_level
+        trigger = setup.get('trigger_text', '').strip()
+        if not trigger or trigger.lower() == 'brak opisu':
+            trigger = f"Obserwuj reakcję ceny w pobliżu kluczowego poziomu {format_price(setup.get('entry'))}"
 
-        r_r_ratio_text = f"{setup.get('r_r_ratio', 'N/A'):.2f}" if isinstance(setup.get('r_r_ratio'), float) else "N/A"
+        # ... (reszta logiki bez zmian, ale używamy nowych zmiennych) ...
+        scenario = setup.get('type', 'N/A')
+        stop_loss = setup.get('stop_loss')
+        tp1 = setup.get('take_profit_1')
+        tp2_data = setup.get('take_profit')
+        tp2 = (tp2_data[0] if isinstance(tp2_data, list) and tp2_data else tp2_data) if tp2_data else None
         confidence = setup.get('confidence')
-        confidence_text = str(confidence) if confidence is not None else "N/A"
-
-        html += f"<p><b>Scenariusz:</b> {setup.get('type', 'N/A')}</p>"
-        html += f"<ul>"
-        html += f"<li><b>Trigger wejścia:</b> {setup.get('trigger_text', 'Brak opisu')}</li>"
-        html += f"<li><b>Stop Loss:</b> {format_price(setup.get('stop_loss'))}</li>"
-        if setup.get('take_profit'):
-            for i, tp in enumerate(setup.get('take_profit', [])):
-                html += f"<li><b>Take Profit {i+1}:</b> {format_price(tp)}</li>"
-        html += f"<li><b>Stosunek R:R dla TP1:</b> {r_r_ratio_text}:1</li>"
-        html += f"<li><b>Wiarygodność setupu:</b> {confidence_text}/10</li>"
-        html += f"</ul>"
-
+        entry = setup.get('entry')
+        
+        rr_ratio_tp1, rr_ratio_tp2 = None, None
+        if entry and stop_loss and (risk := abs(entry - stop_loss)) > 0:
+            if tp1: rr_ratio_tp1 = abs(tp1 - entry) / risk
+            if tp2: rr_ratio_tp2 = abs(tp2 - entry) / risk
+        
+        html += f"<p><b>Scenariusz:</b> {scenario}</p>"
+        html += "<ul>"
+        html += f"<li><b>Trigger wejścia:</b> {trigger}</li>"
+        html += f"<li><b>Stop Loss:</b> {format_price(stop_loss)}</li>"
+        if tp1: html += f"<li><b>Take Profit 1 (częściowy):</b> {format_price(tp1)}" + (f" (R:R {rr_ratio_tp1:.2f}:1)" if rr_ratio_tp1 else "") + "</li>"
+        if tp2: html += f"<li><b>Take Profit 2 (końcowy):</b> {format_price(tp2)}" + (f" (R:R {rr_ratio_tp2:.2f}:1)" if rr_ratio_tp2 else "") + "</li>"
+        if confidence is not None: html += f"<li><b>Wiarygodność setupu:</b> {confidence}/10</li>"
+        html += "</ul>"
     else:
+        # ... (logika dla braku setupu bez zmian) ...
         reasoning = "AI nie znalazło setupu spełniającego wszystkie kryteria."
-        if isinstance(parsed_data.get('setup'), dict):
-            reasoning = parsed_data.get('setup').get('reasoning') or reasoning
+        if isinstance(parsed_data.get('setup'), dict): reasoning = parsed_data.get('setup').get('reasoning') or reasoning
         html += f"<p>{reasoning}</p>"
 
     return html
