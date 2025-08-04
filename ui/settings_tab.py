@@ -25,6 +25,9 @@ SETTINGS_STRUCTURE = {
         {'key': 'ai.temperature', 'label': 'Temperatura:', 'widget': QDoubleSpinBox, 'params': {'minimum': 0.0, 'maximum': 2.0, 'singleStep': 0.1}, 'tooltip': 'Kreatywność modelu AI (wyższa = bardziej zróżnicowane odpowiedzi).'},
         {'key': 'ai.timeout', 'label': 'Timeout zapytania (s):', 'widget': QSpinBox, 'params': {'minimum': 10, 'maximum': 900}, 'tooltip': 'Maksymalny czas oczekiwania na odpowiedź od serwera AI.'},
     ],
+        "Ogólne Ustawienia Analizy": [
+        {'key': 'analysis.multi_timeframe_intervals', 'label': 'Interwały dla Obserwatora:', 'widget': QLineEdit, 'params': {}, 'tooltip': 'Lista interwałów (oddzielonych przecinkami), które AI ocenia w poszukiwaniu najlepszej struktury (np. 30m,1h,4h).'}
+    ],
     "Moduły Kontekstowe AI": [
         {'key': 'ai_context_modules.use_market_regime', 'label': 'Używaj Reżimu Rynku', 'widget': QCheckBox, 'params': {}, 'tooltip': 'Przekazuje do AI informację o ogólnym stanie rynku (hossa/bessa/konsolidacja) na podstawie BTC i ETH.'},
         {'key': 'ai_context_modules.use_order_flow', 'label': 'Używaj Order Flow', 'widget': QCheckBox, 'params': {}, 'tooltip': 'Przekazuje do AI analizę arkusza zleceń i ostatnich transakcji (presja popytu/podaży).'},
@@ -39,7 +42,12 @@ SETTINGS_STRUCTURE = {
         {'key': 'ssnedam.cooldown_minutes', 'label': 'Cooldown dla alertów (min):', 'widget': QSpinBox, 'params': {'minimum': 1, 'maximum': 240}, 'tooltip': 'Ile minut musi minąć, zanim dla tego samego coina zostanie wygenerowany nowy alert.'},
         {'key': 'ssnedam.scanner_prominence', 'label': 'Czułość skanera (Prominencja):', 'widget': QDoubleSpinBox, 'params': {'minimum': 0.1, 'maximum': 2.0, 'singleStep': 0.1}, 'tooltip': 'Jak "wydatny" musi być szczyt/dołek, aby skaner go zauważył. Mniejsza wartość = więcej sygnałów.'},
         {'key': 'ssnedam.scanner_distance', 'label': 'Czułość skanera (Dystans):', 'widget': QSpinBox, 'params': {'minimum': 2, 'maximum': 50}, 'tooltip': 'Minimalna odległość między dwoma szczytami/dołkami. Większa wartość = sygnały z dłuższych struktur.'},
-        {'key': 'ai.min_rr_ratio', 'label': 'Minimalny akceptowalny R:R:', 'widget': QDoubleSpinBox, 'params': {'minimum': 1.0, 'maximum': 10.0, 'singleStep': 0.1}, 'tooltip': 'Globalna zasada: setupy z niższym R:R zostaną odrzucone, nawet jeśli AI je zaproponuje.'},
+        {'key': 'ai.min_rr_ratio', 'label': 'Minimalny R:R (tryb stały):', 'widget': QDoubleSpinBox, 'params': {'minimum': 1.0, 'maximum': 10.0, 'singleStep': 0.1}, 'tooltip': 'Minimalne R:R, jeśli tryb dynamiczny jest wyłączony.'},
+        {'key': 'ai.dynamic_rr.enabled', 'label': 'Włącz dynamiczne R:R', 'widget': QCheckBox, 'params': {}, 'tooltip': 'Automatycznie dostosowuje wymagane R:R na podstawie zmienności rynkowej.'},
+        {'key': 'ai.dynamic_rr.atr_threshold_pct', 'label': 'Próg zmienności (ATR %):', 'widget': QDoubleSpinBox, 'params': {'minimum': 0.1, 'maximum': 10.0, 'singleStep': 0.1}, 'tooltip': 'Procentowa wartość ATR (na interwale dziennym), która rozdziela rynek "spokojny" od "zmiennego".'},
+        {'key': 'ai.dynamic_rr.high_vol_rr', 'label': 'Wymagane R:R (wysoka zmienność):', 'widget': QDoubleSpinBox, 'params': {'minimum': 1.0, 'maximum': 5.0, 'singleStep': 0.1}, 'tooltip': 'Minimalne R:R wymagane, gdy zmienność jest POWYŻEJ progu.'},
+        {'key': 'ai.dynamic_rr.low_vol_rr', 'label': 'Wymagane R:R (niska zmienność):', 'widget': QDoubleSpinBox, 'params': {'minimum': 1.5, 'maximum': 10.0, 'singleStep': 0.1}, 'tooltip': 'Minimalne R:R wymagane, gdy zmienność jest PONIŻEJ progu.'}, 
+        {'key': 'ai.validation.max_tp_to_atr_ratio', 'label': 'Maks. stosunek TP do ATR:', 'widget': QDoubleSpinBox, 'params': {'minimum': 1.0, 'maximum': 20.0, 'singleStep': 0.5, 'value': 10.0}, 'tooltip': 'Filtr Realizmu: Odrzuca cele TP, które są dalej niż X-krotność wskaźnika ATR od ceny wejścia.'},
     ],
     "Parametry Strategii (Backtester)": [
         {'key': 'strategies.ai_clone.ema_fast_len', 'label': 'Szybka EMA:', 'widget': QSpinBox, 'params': {'minimum': 2, 'maximum': 100}, 'tooltip': 'Długość szybkiej średniej kroczącej w strategii AIClone.'},
@@ -54,9 +62,17 @@ SETTINGS_STRUCTURE = {
         {'key': 'ssnedam.sr_scanner_distance', 'label': 'Czułość S/R (Dystans):', 'widget': QSpinBox, 'params': {'minimum': 2, 'maximum': 50}, 'tooltip': 'Minimalna odległość w świecach między szczytami/dołkami dla skanera S/R.'},
         {'key': 'strategies.ai_clone.risk_reward_ratio_tp1', 'label': 'R:R dla TP1 (częściowy):', 'widget': QDoubleSpinBox, 'params': {'minimum': 0.5, 'maximum': 10.0, 'singleStep': 0.1}, 'tooltip': 'Stosunek zysku do ryzyka dla zamknięcia pierwszej części pozycji.'},
         {'key': 'strategies.ai_clone.risk_reward_ratio_tp2', 'label': 'R:R dla TP2 (końcowy):', 'widget': QDoubleSpinBox, 'params': {'minimum': 1.0, 'maximum': 20.0, 'singleStep': 0.1}, 'tooltip': 'Stosunek zysku do ryzyka dla zamknięcia reszty pozycji.'},
-        {'key': 'strategies.ai_clone.partial_close_pct', 'label': '% pozycji do zamknięcia na TP1:', 'widget': QSpinBox, 'params': {'minimum': 10, 'maximum': 90, 'suffix': ' %'}, 'tooltip': 'Jaki procent pozycji ma zostać zamknięty po osiągnięciu TP1.'}
-   
-    ]
+        {'key': 'strategies.ai_clone.partial_close_pct', 'label': '% pozycji do zamknięcia na TP1:', 'widget': QSpinBox, 'params': {'minimum': 10, 'maximum': 90, 'suffix': ' %'}, 'tooltip': 'Jaki procent pozycji ma zostać zamknięty po osiągnięciu TP1.'},
+        {'key': 'strategies.ai_clone.min_risk_reward_ratio_tp1', 'label': 'Min. R:R dla TP1:', 'widget': QDoubleSpinBox, 'params': {'minimum': 0.2, 'maximum': 5.0, 'singleStep': 0.1}, 'tooltip': 'Minimalny akceptowalny stosunek zysku do ryzyka dla pierwszego, częściowego TP.'}
+        ],
+        
+    "Parametry Strategii (Mean Reversion)": [
+        {'key': 'strategies.mean_reversion_rsi.rsi_len', 'label': 'Długość RSI:', 'widget': QSpinBox, 'params': {'minimum': 2, 'maximum': 50}, 'tooltip': 'Długość wskaźnika RSI.'},
+        {'key': 'strategies.mean_reversion_rsi.rsi_oversold', 'label': 'Poziom wyprzedania RSI:', 'widget': QSpinBox, 'params': {'minimum': 5, 'maximum': 45}, 'tooltip': 'Poziom RSI, poniżej którego strategia szuka wejść w pozycje długie.'},
+        {'key': 'strategies.mean_reversion_rsi.rsi_exit_level', 'label': 'Poziom wyjścia RSI:', 'widget': QSpinBox, 'params': {'minimum': 40, 'maximum': 70}, 'tooltip': 'Poziom RSI, powyżej którego strategia zamyka pozycję.'},
+        {'key': 'strategies.mean_reversion_rsi.atr_len', 'label': 'Długość ATR:', 'widget': QSpinBox, 'params': {'minimum': 2, 'maximum': 50}, 'tooltip': 'Długość wskaźnika ATR, używanego do obliczania Stop Lossa.'},
+        {'key': 'strategies.mean_reversion_rsi.atr_multiplier_sl', 'label': 'Mnożnik ATR dla SL:', 'widget': QDoubleSpinBox, 'params': {'minimum': 0.1, 'maximum': 10.0, 'singleStep': 0.1}, 'tooltip': 'Jak daleko od ceny wejścia (w wielokrotnościach ATR) ma być ustawiony Stop Loss.'}
+    ],
 }
 
 class SettingsTab(QWidget):
@@ -154,39 +170,47 @@ class SettingsTab(QWidget):
         self.update_group_list(groups)
 
     def load_settings(self):
-        
         for key, control in self.controls_map.items():
             value = self.settings_manager.get(key)
             if value is None: continue
-            if isinstance(control, QComboBox):
-                if key == 'app.theme':
-                    control.setCurrentText(str(value).capitalize())
-                else:
-                    control.setCurrentText(str(value))
+            
+            # --- NOWA LOGIKA DLA LISTY INTERWAŁÓW ---
+            if key == 'analysis.multi_timeframe_intervals' and isinstance(value, list):
+                control.setText(", ".join(value))
+            # --- KONIEC NOWEJ LOGIKI ---
+            elif isinstance(control, QComboBox):
+                if key == 'app.theme': control.setCurrentText(str(value).capitalize())
+                else: control.setCurrentText(str(value))
             elif isinstance(control, QCheckBox):
                 control.setChecked(bool(value))
-            elif isinstance(control, QSpinBox): # Osobna obsługa dla liczb całkowitych
-                control.setValue(int(float(value))) # Konwertujemy na int
-            elif isinstance(control, QDoubleSpinBox): # Osobna obsługa dla liczb zmiennoprzecinkowych
-                control.setValue(float(value)) # Konwertujemy na float
+            elif isinstance(control, QSpinBox):
+                control.setValue(int(float(value)))
+            elif isinstance(control, QDoubleSpinBox):
+                control.setValue(float(value))
             elif isinstance(control, QLineEdit):
                 control.setText(str(value))
 
     def save_settings(self):
         for key, control in self.controls_map.items():
             value = None
-            if isinstance(control, QComboBox):
+            # --- NOWA LOGIKA DLA LISTY INTERWAŁÓW ---
+            if key == 'analysis.multi_timeframe_intervals':
+                # Konwertujemy tekst "30m, 1h, 4h" na listę ['30m', '1h', '4h']
+                value = [item.strip() for item in control.text().split(',') if item.strip()]
+            # --- KONIEC NOWEJ LOGIKI ---
+            elif isinstance(control, QComboBox):
                 value = control.currentText()
-                if key == 'app.theme':
-                    value = value.lower()
+                if key == 'app.theme': value = value.lower()
             elif isinstance(control, QCheckBox):
                 value = control.isChecked()
             elif isinstance(control, (QSpinBox, QDoubleSpinBox)):
                 value = control.value()
             elif isinstance(control, QLineEdit):
                 value = control.text()
+            
             if value is not None:
                 self.settings_manager.set(key, value)
+                
         if self.settings_manager.save_settings():
             QMessageBox.information(self, "Sukces", "Ustawienia zostały zapisane.")
             self.settings_changed.emit()

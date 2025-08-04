@@ -9,6 +9,9 @@ from core.settings_manager import SettingsManager
 from core.exchange_service import ExchangeService
 from core.indicator_service import IndicatorService, IndicatorKeyGenerator
 from core.database_manager import DatabaseManager
+from core.data_models import ContextData
+from app_config import MARKET_REGIME_SYMBOLS
+from app_config import RELATIVE_STRENGTH_BASE_SYMBOL, RELATIVE_STRENGTH_LOOKBACK_DAYS
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +29,7 @@ class ContextService:
             exchange = await self.exchange_service.get_exchange_instance(exchange_id)
             if not exchange: return "KONSOLIDACJA"
             
-            assets = ['BTC/USDT', 'ETH/USDT']
+            assets = MARKET_REGIME_SYMBOLS
             tasks = [self.exchange_service.fetch_ohlcv(exchange, asset, '1d', limit=51) for asset in assets]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -209,7 +212,7 @@ class ContextService:
             logger.warning(f"Nie udało się pobrać danych on-chain dla {symbol}: {e}")
             return metrics
 
-    async def get_relative_strength(self, symbol: str, exchange: str, comparison_symbol: str = "BTC/USDT", lookback_days: int = 7) -> Optional[float]:
+    async def get_relative_strength(self, symbol: str, exchange: str, comparison_symbol: str = RELATIVE_STRENGTH_BASE_SYMBOL, lookback_days: int = RELATIVE_STRENGTH_LOOKBACK_DAYS) -> Optional[float]:
         try:
             exchange_instance = await self.exchange_service.get_exchange_instance(exchange)
             if not exchange_instance: return None
@@ -329,3 +332,83 @@ class ContextService:
         except Exception as e:
             logger.warning(f"Nie udało się obliczyć metryk dziennych dla {symbol}: {e}")
             return metrics
+        
+    def get_mean_reversion_status(self, df_with_indicators: pd.DataFrame) -> str:
+        """Analizuje DF pod kątem potencjału do powrotu do średniej na podstawie RSI."""
+        if df_with_indicators is None or df_with_indicators.empty:
+            return "Brak danych"
+
+        # Używamy parametrów ze strategii MeanReversionRSI jako punktu odniesienia
+        # W przyszłości te wartości mogą pochodzić z ustawień
+        rsi_oversold = 25
+        rsi_overbought = 75
+        
+        rsi_key = next((col for col in df_with_indicators.columns if 'RSI' in col), None)
+        if not rsi_key:
+            return "Brak wskaźnika RSI"
+            
+        last_rsi = df_with_indicators[rsi_key].iloc[-1]
+
+        if last_rsi < rsi_oversold:
+            return "RYNEK SKRAJNIE WYPRZEDANY (potencjał do odbicia)"
+        elif last_rsi > rsi_overbought:
+            return "RYNEK SKRAJNIE WYKUPIONY (potencjał do korekty)"
+        else:
+            return "Brak sygnału powrotu do średniej"
+        
+    async def get_full_context(self, symbol: str, exchange_id: str, df_with_indicators: pd.DataFrame) -> ContextData:
+        """
+        Zbiera wszystkie dane kontekstowe i zwraca je jako pojedynczy obiekt.
+        """
+        # Uruchamiamy zadania, które mogą działać równolegle
+        tasks = {
+            "market_regime": self.get_market_regime(exchange_id),
+            "order_flow": self.analyze_order_flow_strength(symbol, exchange_id),
+            "market_momentum": self.get_market_momentum_status(symbol, exchange_id),
+            "onchain": self.get_onchain_context(symbol, exchange_id)
+        }
+        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        
+        # Przypisujemy wyniki, obsługując ewentualne błędy
+        task_results = dict(zip(tasks.keys(), results))
+        def get_res(key, default):
+            res = task_results.get(key)
+            return res if not isinstance(res, Exception) else default
+
+        # Obliczenia, które zależą od DataFrame, wykonujemy synchronicznie
+        intermediate_trend = self.get_intermediate_trend_status(df_with_indicators)
+        approach_momentum = self.analyze_approach_momentum(df_with_indicators)
+        mean_reversion = self.get_mean_reversion_status(df_with_indicators)
+        
+        # Tworzymy i zwracamy obiekt
+        return ContextData(
+            market_regime=get_res("market_regime", "KONSOLIDACJA"),
+            order_flow_status=get_res("order_flow", "BRAK_DANYCH"),
+            market_momentum_status=get_res("market_momentum", "NEUTRALNY"),
+            onchain_data=get_res("onchain", {}),
+            intermediate_trend=intermediate_trend,
+            approach_momentum_status=approach_momentum,
+            mean_reversion_status=mean_reversion,
+            performance_insights="", # Uzupełnimy to w pipeline
+            devils_advocate_argument="" # Uzupełnimy to w pipeline
+        )
+    
+    async def get_long_short_ratio(self, symbol: str, exchange_id: str) -> Optional[float]:
+        """Pobiera stosunek pozycji długich do krótkich dla danego symbolu."""
+        try:
+            exchange = await self.exchange_service.get_exchange_instance(exchange_id)
+            # Sprawdzamy, czy giełda w ogóle udostępnia te dane
+            if not exchange or not exchange.has.get('fetchLongShortRatio'):
+                return None
+
+            # Upewniamy się, że pytamy o kontrakty (swap)
+            exchange.options['defaultType'] = 'swap'
+            ratio_data = await exchange.fetch_long_short_ratio(symbol)
+            
+            # 'longShortRatio' to klucz używany przez ccxt
+            if ratio_data and 'longShortRatio' in ratio_data:
+                return float(ratio_data['longShortRatio'])
+            return None
+        except Exception as e:
+            logger.warning(f"Nie udało się pobrać Long/Short Ratio dla {symbol}: {e}")
+            return None

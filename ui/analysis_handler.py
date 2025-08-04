@@ -43,7 +43,7 @@ class AnalysisHandler:
         self.ai_pipeline = ai_pipeline
         self.parent_widget = parent_widget
 
-    async def run_full_analysis(self, symbol: str, interval: str, exchange: str, trade_mode: str):
+    async def run_full_analysis(self, symbol: str, interval: str, exchange: str,):
         try:
             # --- NOWY BLOK TRY...EXCEPT WOKÓŁ GŁÓWNEGO WYWOŁANIA ---
             parsed_response, analysis_result, best_timeframe, context_data = await self.ai_pipeline.run(

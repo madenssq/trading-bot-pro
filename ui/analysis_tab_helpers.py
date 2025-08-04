@@ -23,70 +23,60 @@ def draw_chart_with_features(context, plot_widget, df: pd.DataFrame, fvgs: list 
     theme = THEMES[theme_key]
 
     plot_widget.setBackground(theme['CHART_BG'])
-
     if df is None or df.empty:
         plot_widget.addPlot().setTitle("Brak danych do wyświetlenia", color='red')
         return None
 
     plot_area = plot_widget.addPlot(row=0, col=0, axisItems={'bottom': DateAxis(orientation='bottom')})
     plot_area.setTitle(title)
-    plot_area.showGrid(x=False, y=False)
-
-    left_axis = plot_area.getAxis('left')
-    left_axis.setPen(color=theme['CHART_FG'], width=1)
-    left_axis.setTextPen(color=theme['CHART_FG'])
-
-    # `plotted_items` jest teraz atrybutem obiektu `context` (np. AnalysisTab)
-    # więc nie musimy go tutaj tworzyć ani zwracać.
-    context.plotted_items = {}
-    params = context.settings_manager.get('analysis.indicator_params', {})
-
+    
+    # Rysowanie wszystkich elementów (bez zmian)
+    context.plotted_items = {}; params = context.settings_manager.get('analysis.indicator_params', {})
     _draw_candlesticks(context, plot_area, df, alert_data)
     _draw_emas(context, plot_area, df, params)
     _draw_bbands(context, plot_area, df, params)
-
     if fib_data: _draw_fibonacci_levels(context, plot_area, fib_data)
     if sr_levels: _draw_support_resistance(context, plot_area, sr_levels)
     if fvgs: _draw_fvgs(context, plot_area, fvgs)
     if setup: _draw_setup_zones(context, plot_area, setup)
-
-    if setup and setup.get("trigger_event"):
-        event_data = setup["trigger_event"]
-        trap_level = event_data.get("level")
-        if trap_level:
-            trap_line = pg.InfiniteLine(
-                pos=trap_level, angle=0, pen=pg.mkPen('yellow', style=Qt.PenStyle.DashLine, width=2), 
-                label='Poziom Pułapki {value:.4f}', labelOpts={'position': 0.5, 'color': 'y'}
-            )
-            context.plot_area.addItem(trap_line)
-            if 'trap_levels' not in context.plotted_items: context.plotted_items['trap_levels'] = []
-            context.plotted_items['trap_levels'].append(trap_line)
-    if trade_events:
-        _draw_trade_events(context, plot_area, trade_events)
-
+    if trade_events: _draw_trade_events(context, plot_area, trade_events)
+    
+    # --- NOWA, ULEPSZONA LOGIKA USTAWIANIA WIDOKU ---
     if zoom_range:
-        # Jeśli podano niestandardowy zoom (np. w Alercie), użyj go
         plot_area.setXRange(zoom_range['x_min'], zoom_range['x_max'])
         plot_area.setYRange(zoom_range['y_min'], zoom_range['y_max'])
-    elif setup and setup.get('entry'):
-        # Jeśli jest setup, skup się na nim i ostatnich 60 świecach
-        setup_prices = [setup.get('entry'), setup.get('stop_loss')] + setup.get('take_profit', [])
-        valid_setup_prices = [p for p in setup_prices if isinstance(p, (int, float))]
-        
-        recent_df = df.iloc[-60:]
-        
-        min_price = min(recent_df['Low'].min(), min(valid_setup_prices))
-        max_price = max(recent_df['High'].max(), max(valid_setup_prices))
-        
-        padding = (max_price - min_price) * 0.1
-        
-        plot_area.setYRange(min_price - padding, max_price + padding)
-        plot_area.setXRange(recent_df.index[0].timestamp(), recent_df.index[-1].timestamp())
     else:
-        # Jeśli nie ma setupu, po prostu użyj wbudowanego auto-zakresu
-        plot_area.enableAutoRange(axis='xy')
+        # 1. Ustaw oś czasu (X) na ostatnie 140 świec
+        candles_to_show = 140
+        visible_df = df.iloc[-candles_to_show:] if len(df) > candles_to_show else df
+        plot_area.setXRange(visible_df.index[0].timestamp(), visible_df.index[-1].timestamp())
         
-    # Zapisujemy plot_area w kontekście, aby inne metody (jak _reset_chart_view) miały do niego dostęp
+        # 2. Oblicz zakres cen (Y) na podstawie świec ORAZ setupu
+        min_candle_price = visible_df['Low'].min()
+        max_candle_price = visible_df['High'].max()
+        
+        # Zbierz wszystkie ceny z setupu, które nie są None
+        setup_prices = []
+        if setup:
+            setup_prices.extend([
+                setup.get('entry'), setup.get('stop_loss'), setup.get('take_profit_1')
+            ])
+            tp2_data = setup.get('take_profit')
+            if isinstance(tp2_data, list) and tp2_data:
+                setup_prices.append(tp2_data[0])
+            elif isinstance(tp2_data, (int, float)):
+                setup_prices.append(tp2_data)
+        
+        valid_setup_prices = [p for p in setup_prices if p is not None]
+        
+        # Wyznacz ostateczny zakres Y
+        final_min_price = min(min_candle_price, *valid_setup_prices) if valid_setup_prices else min_candle_price
+        final_max_price = max(max_candle_price, *valid_setup_prices) if valid_setup_prices else max_candle_price
+        
+        # Dodaj margines (padding)
+        padding = (final_max_price - final_min_price) * 0.05
+        plot_area.setYRange(final_min_price - padding, final_max_price + padding)
+
     context.plot_area = plot_area
     return plot_area
 
@@ -167,18 +157,44 @@ def _draw_setup_zones(context, plot, setup_data: dict):
     _draw_sl_tp_lines(context, plot, setup_data)
     
 def _draw_sl_tp_lines(context, plot, setup_data: dict):
-    if 'setup' not in context.plotted_items: context.plotted_items['setup'] = []
+    """NOWA WERSJA: Rysuje wszystkie poziomy (Entry, SL, TP1, TP2) z odpowiednimi etykietami."""
+    if 'setup' not in context.plotted_items:
+        context.plotted_items['setup'] = []
+    
+    # Rysowanie ceny wejścia
     if entry := setup_data.get('entry'):
-        line = pg.InfiniteLine(pos=entry, angle=0, pen=pg.mkPen('cyan', style=Qt.PenStyle.DashLine), label='Wejście {value:.4f}', labelOpts={'position': 0.15})
+        line = pg.InfiniteLine(pos=entry, angle=0, pen=pg.mkPen('cyan', style=Qt.PenStyle.DashLine), 
+                               label='Wejście {value:.4f}', labelOpts={'position': 0.15})
         plot.addItem(line)
         context.plotted_items['setup'].append(line)
+        
+    # Rysowanie Stop Lossa
     if sl := setup_data.get('stop_loss'):
-        line = pg.InfiniteLine(pos=sl, angle=0, pen=pg.mkPen('red', style=Qt.PenStyle.DashLine), label='Stop Loss {value:.4f}', labelOpts={'position': 0.15})
+        line = pg.InfiniteLine(pos=sl, angle=0, pen=pg.mkPen('red', style=Qt.PenStyle.DashLine), 
+                               label='Stop Loss {value:.4f}', labelOpts={'position': 0.15})
         plot.addItem(line)
         context.plotted_items['setup'].append(line)
-    if tps := setup_data.get('take_profit'):
-        for i, tp in enumerate(tps):
-            line = pg.InfiniteLine(pos=tp, angle=0, pen=pg.mkPen('green', style=Qt.PenStyle.DashLine), label=f'TP {i+1} {{value:.4f}}', labelOpts={'position': 0.15})
+        
+    # --- NOWA, INTELIGENTNA LOGIKA DLA TAKE PROFIT ---
+    
+    # Rysowanie TP1 (jeśli istnieje)
+    if tp1 := setup_data.get('take_profit_1'):
+        line = pg.InfiniteLine(pos=tp1, angle=0, pen=pg.mkPen('#00A86B', style=Qt.PenStyle.DotLine, width=2), 
+                               label='TP1 (częściowy) {value:.4f}', labelOpts={'position': 0.15, 'color': '#00A86B'})
+        plot.addItem(line)
+        context.plotted_items['setup'].append(line)
+
+    # Rysowanie TP2 (ostatecznego)
+    tps = setup_data.get('take_profit')
+    if tps:
+        # Upewniamy się, że tps to lista
+        if not isinstance(tps, list):
+            tps = [tps]
+            
+        if tps: # Sprawdzamy, czy lista nie jest pusta
+            tp2 = tps[0]
+            line = pg.InfiniteLine(pos=tp2, angle=0, pen=pg.mkPen('green', style=Qt.PenStyle.DashLine, width=2), 
+                                   label='TP2 (końcowy) {value:.4f}', labelOpts={'position': 0.15, 'color': 'green'})
             plot.addItem(line)
             context.plotted_items['setup'].append(line)
 

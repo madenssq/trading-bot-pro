@@ -52,24 +52,33 @@ class IndicatorService:
 
     def calculate_all(self, df: pd.DataFrame) -> pd.DataFrame:
         if df is None or df.empty: return pd.DataFrame()
-        rename_map = {col: col.lower() for col in df.columns}
-        df.rename(columns=rename_map, inplace=True)
+        
+        df_copy = df.copy()
+        rename_map = {col: col.lower() for col in df_copy.columns}
+        df_copy.rename(columns=rename_map, inplace=True)
+        
         try:
             params = self.settings.get('analysis.indicator_params', {})
-            df.ta.atr(append=True, length=params.get('atr_length', 14))
-            df.ta.obv(append=True)
-            df.ta.rsi(append=True, length=params.get('rsi_length', 14))
-            df.ta.ema(append=True, length=params.get('ema_fast_length', 50))
-            df.ta.ema(append=True, length=params.get('ema_slow_length', 200))
-            df.ta.macd(append=True, fast=params.get('macd_fast', 12), slow=params.get('macd_slow', 26), signal=params.get('macd_signal', 9))
-            df.ta.bbands(append=True, length=params.get('bbands_length', 20), std=params.get('bbands_std', 2.0))
-            df.ta.vwap(append=True)
+            
+            if 'close' not in df_copy.columns:
+                logger.error("Brak kolumny 'close' w DataFrame! Przerywam obliczenia wskaźników.")
+                return df
+
+            df_copy.ta.atr(append=True, length=params.get('atr_length', 14))
+            df_copy.ta.obv(append=True)
+            df_copy.ta.rsi(append=True, length=params.get('rsi_length', 14))
+            df_copy.ta.ema(append=True, length=params.get('ema_fast_length', 50))
+            df_copy.ta.ema(append=True, length=params.get('ema_slow_length', 200))
+            df_copy.ta.macd(append=True, fast=params.get('macd_fast', 12), slow=params.get('macd_slow', 26), signal=params.get('macd_signal', 9))
+            df_copy.ta.bbands(append=True, length=params.get('bbands_length', 20), std=params.get('bbands_std', 2.0))
+            df_copy.ta.vwap(append=True)
         except Exception as e:
-            logger.error(f"Błąd podczas obliczania wskaźników: {e}", exc_info=True)
+            logger.error(f"Błąd podczas obliczania wskaźników w pandas-ta: {e}", exc_info=True)
         finally:
-            df.columns = [col.upper() for col in df.columns]
-            df.rename(columns={'OPEN': 'Open', 'HIGH': 'High', 'LOW': 'Low', 'CLOSE': 'Close', 'VOLUME': 'Volume'}, inplace=True)
-        return df
+            df_copy.columns = [col.upper() for col in df_copy.columns]
+            df_copy.rename(columns={'OPEN': 'Open', 'HIGH': 'High', 'LOW': 'Low', 'CLOSE': 'Close', 'VOLUME': 'Volume'}, inplace=True)
+            
+        return df_copy
 
     def interpret_all(self, df: pd.DataFrame) -> Dict[str, Any]:
         if len(df) < 2: return {}
@@ -115,7 +124,7 @@ class IndicatorService:
             
             result['RSI'] = {'text': status_text, 'sentiment': sentiment}
             
-            divergence = self.analyzer.pattern_service.find_divergence(df['Close'], df[rsi_key])
+            divergence = self.analyzer.find_divergence(df['Close'], df[rsi_key])
             if divergence:
                 div_sentiment = 'bullish' if 'Bycza' in divergence else 'bearish'
                 result['RSI_Divergence'] = {'text': 'Występuje', 'sentiment': div_sentiment}

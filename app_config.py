@@ -1,8 +1,6 @@
 import os
 
-# --- ŚCIEŻKI PLIKÓW I KATALOGÓW ---
-
-# Główne katalogi
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = "data"
 LOGS_DIR = os.path.join(DATA_DIR, "logs")
 CONFIG_DIR = os.path.join(DATA_DIR, "config")
@@ -13,6 +11,7 @@ SYMBOLS_CACHE_FILE = os.path.join(DATA_DIR, "symbols_cache.json")
 LOG_FILE = os.path.join(LOGS_DIR, "trading_bot.log")
 USER_SETTINGS_FILE = os.path.join(CONFIG_DIR, "user_settings.json")
 COOLDOWN_CACHE_FILE = os.path.join(DATA_DIR, "cooldown_cache.json")
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # Klucz do uwierzytelniania z Firebase
 FIREBASE_ADMIN_SDK_KEY_PATH = "firebase-adminsdk.json"
@@ -70,18 +69,26 @@ DEFAULT_SETTINGS = {
         "use_onchain_data": True,
         "use_performance_insights": False
     },
-    # ... reszta słownika (strategies, logging, etc.) bez zmian ...
     "strategies": {
         "ai_clone": {
-            "ema_fast_len": 21,
-            "ema_slow_len": 50,
+            "ema_fast_len": 30,
+            "ema_slow_len": 170,
             "rsi_len": 14,
             "rsi_overbought": 75,
             "atr_len": 14,
-            "atr_multiplier_sl": 1.5,
-            "risk_reward_ratio_tp1": 1.5, # R:R dla pierwszego, częściowego zysku
-            "risk_reward_ratio_tp2": 3.0, # R:R dla drugiego, ostatecznego zysku
-            "partial_close_pct": 50
+            "atr_multiplier_sl": 2.0,
+            "risk_reward_ratio_tp1": 1.5,
+            "risk_reward_ratio_tp2": 2.0,
+            "partial_close_pct": 50,
+            "min_risk_reward_ratio_tp1": 0.8
+        },
+        # --- NOWA SEKCJA PONIŻEJ ---
+        "mean_reversion_rsi": {
+            "rsi_len": 14,
+            "rsi_oversold": 25,
+            "rsi_exit_level": 50,
+            "atr_len": 14,
+            "atr_multiplier_sl": 2.0
         }
     },
     "logging": {
@@ -97,9 +104,9 @@ DEFAULT_SETTINGS = {
     "analysis": {
         "default_interval": "1h",
         "multi_timeframe_intervals": [
+            "30m",
             "1h",
-            "4h",
-            "1d"
+            "4h"
         ],
         "default_mode": "Antycypacja",
         "indicator_params": {
@@ -135,3 +142,23 @@ DEFINITIONS = {
     "PRICE ACTION": "Analiza samego ruchu ceny na wykresie, formacji świecowych oraz struktury rynku bez użycia wskaźników.",
     "DYWERGENCJA": "Rozbieżność między ruchem ceny a wskaźnikiem (np. cena robi wyższy szczyt, a RSI niższy). Często zapowiada odwrócenie trendu."
 }
+
+# Symbole używane do określania ogólnego reżimu rynkowego
+MARKET_REGIME_SYMBOLS = ['BTC/USDT', 'ETH/USDT']
+
+# --- PARAMETRY ALGORYTMÓW ANALITYCZNYCH ---
+
+# Symbol bazowy do obliczania siły względnej
+RELATIVE_STRENGTH_BASE_SYMBOL = "BTC/USDT"
+# Okres (w dniach) do obliczania siły względnej
+RELATIVE_STRENGTH_LOOKBACK_DAYS = 7
+
+# Okres (w świecach) do wyszukiwania swingu dla zniesień Fibonacciego
+FIBONACCI_LOOKBACK_PERIOD = 100
+
+# Domyślna maksymalna liczba świec do pobrania przez Backtester
+BACKTESTER_MAX_CANDLES = 500
+
+# Czas ważności pamięci podręcznej dla danych dashboardu (w sekundach)
+# 15 minut * 60 sekund = 900 sekund
+DASHBOARD_CACHE_LIFETIME_SECONDS = 15 * 60

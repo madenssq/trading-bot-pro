@@ -1,4 +1,4 @@
-# Plik: main.py (WERSJA FINALNA I POPRAWIONA)
+# Plik: main.py (POPRAWNA I OSTATECZNA WERSJA)
 
 import os
 import sys
@@ -8,12 +8,12 @@ import logging
 import logging.handlers
 import traceback
 from dotenv import load_dotenv
-load_dotenv() 
-import warnings # <-- NOWY IMPORT
 
-# --- NOWY BLOK KODU ---
-# Ignoruj specyficzne, nieszkodliwe ostrzeżenie (FutureWarning)
-# generowane przez bibliotekę pyqtgraph z powodu zmian w bibliotece pandas.
+project_dir = os.path.dirname(os.path.abspath(__file__))
+dotenv_path = os.path.join(project_dir, '.env')
+load_dotenv(dotenv_path=dotenv_path)
+import warnings 
+
 warnings.filterwarnings(
     'ignore', 
     message="Series.__getitem__ treating keys as positions is deprecated.*",
@@ -22,8 +22,6 @@ warnings.filterwarnings(
 )
 
 os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = "9222"
-
-# --- GLOBALNA FLAGA LOGOWANIA ---
 _logging_configured = False
 
 def configure_qt_environment():
@@ -53,48 +51,32 @@ CONFIG_DIR = os.path.join(DATA_DIR, "config")
 LOG_FILE = os.path.join(LOGS_DIR, "trading_bot.log")
 
 def create_directories():
-    """Tworzy niezbędne foldery, jeśli nie istnieją."""
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(LOGS_DIR, exist_ok=True)
     os.makedirs(CONFIG_DIR, exist_ok=True)
 
 def configure_logging(settings_manager: SettingsManager):
-    """Konfiguruje podstawowe logowanie do pliku i konsoli."""
     global _logging_configured
-    if _logging_configured:
-        return
-
+    if _logging_configured: return
     create_directories()
     log_config = settings_manager.get('logging', {})
     app_log_level = log_config.get("level", "INFO").upper()
     formatter = logging.Formatter(log_config.get("format", "%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
-
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
-    
     app_logger = logging.getLogger()
-    if app_logger.hasHandlers():
-        app_logger.handlers.clear()
+    if app_logger.hasHandlers(): app_logger.handlers.clear()
     app_logger.setLevel(app_log_level)
-
-    file_handler = logging.handlers.RotatingFileHandler(
-        LOG_FILE,
-        maxBytes=log_config.get("max_size_mb", 10) * 1024 * 1024,
-        backupCount=log_config.get("backup_count", 3),
-        encoding='utf-8'
-    )
+    file_handler = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=log_config.get("max_size_mb", 10) * 1024 * 1024, backupCount=log_config.get("backup_count", 3), encoding='utf-8')
     file_handler.setFormatter(formatter)
     app_logger.addHandler(file_handler)
-
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
     app_logger.addHandler(stream_handler)
-    
     logging.info("Podstawowe logowanie (plik, konsola) zostało skonfigurowane. Poziom logów: %s", app_log_level)
     _logging_configured = True
 
 def add_ui_log_handler(window_instance):
-    """Dodaje handler logowania do widgetu w UI."""
     if not window_instance: return
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     qt_handler = QtLogHandler(window_instance)
@@ -103,16 +85,13 @@ def add_ui_log_handler(window_instance):
     logging.info("Handler logowania dla UI został dodany.")
 
 def handle_exception(exc_type, exc_value, exc_traceback):
-    """Globalna obsługa nieprzechwyconych wyjątków."""
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
     logging.critical("Nieobsłużony wyjątek! Aplikacja zostanie zamknięta.", exc_info=(exc_type, exc_value, exc_traceback))
 
 def main():
-    """Główna funkcja uruchamiająca aplikację."""
     sys.excepthook = handle_exception
-
     try:
         settings_manager = SettingsManager()
         configure_logging(settings_manager)
@@ -123,7 +102,6 @@ def main():
 
         window = MainWindow(settings_manager)
         add_ui_log_handler(window)
-
         window.setWindowTitle("BotradingowyMADENSS")
         window.showMaximized()
 

@@ -21,9 +21,7 @@ from PyQt6.QtCore import QBuffer
 from core.ai_pipeline import AIPipeline
 from core.performance_analyzer import PerformanceAnalyzer
 from core.database_manager import DatabaseManager
-from core.prompt_templates import (OBSERVER_PROMPT_TEMPLATE,
-                                   STRATEGIST_PROMPT_TEMPLATE,
-                                   TACTICIAN_PROMPT_TEMPLATE)
+
 
 try:
     from plyer import notification
@@ -97,7 +95,8 @@ class Ssnedam:
                     await self._generate_and_trigger_alert(
                         symbol=symbol, exchange=task_data['exchange'],
                         interval=interval, on_alert_callback=task_data['on_alert_callback'],
-                        status_callback=self.update_status
+                        status_callback=self.update_status,
+                        trigger_pattern=task_data.get('trigger_pattern', "Brak")
                     )
 
                 self.update_status("W gotowości...", False)
@@ -135,7 +134,7 @@ class Ssnedam:
                 continue
 
             try:
-                coin_setups = await self.analyzer.pattern_service.find_potential_setups(coin['symbol'], coin['exchange'], alert_interval)
+                coin_setups = await self.analyzer.find_potential_setups(coin['symbol'], coin['exchange'], alert_interval)
                 
                 if not coin_setups:
                     continue
@@ -146,7 +145,7 @@ class Ssnedam:
                 
                 task_data = {
                     'symbol': symbol, 'exchange': coin['exchange'],
-                    'interval': best_setup['interval'], 'on_alert_callback': on_alert_callback
+                    'interval': best_setup['interval'], 'on_alert_callback': on_alert_callback, 'trigger_pattern': best_setup['details'] 
                 }
                 await self.analysis_queue.put(task_data)
                 self.queue_update_callback(self.analysis_queue.qsize())
@@ -162,10 +161,10 @@ class Ssnedam:
         logger.info(f"[Ssnedam] Skanowanie zakończone. Aktualny rozmiar kolejki AI: {self.analysis_queue.qsize()}")
 
 
-    async def _generate_and_trigger_alert(self, symbol: str, exchange: str, interval: str, on_alert_callback: Callable, status_callback: Callable):
+    async def _generate_and_trigger_alert(self, symbol: str, exchange: str, interval: str, on_alert_callback: Callable, status_callback: Callable, trigger_pattern: str):
         try:
             parsed_response, analysis_result, best_timeframe, context_data = await self.ai_pipeline.run(
-                symbol, interval, exchange, status_callback
+                symbol, interval, exchange, status_callback, trigger_pattern # <-- Przekazujemy do pipeline
             )
 
             if not parsed_response or not analysis_result:
@@ -194,46 +193,50 @@ class Ssnedam:
     
 
     def _format_telegram_caption(self, alert_data: AlertData) -> str:
-        """NOWA WERSJA: Formatuje podpis na Telegram, sama oblicza R:R i poprawnie escapuje znaki."""
+        """NOWA WERSJA: Poprawnie formatuje i zabezpiecza (escapuje) wszystkie znaki specjalne."""
         setup = alert_data.setup_data
         if not setup:
             return f"🔔 *Nowy Alert dla {self._escape_markdown_v2(alert_data.symbol)}* \nBrak szczegółów setupu."
 
-        r_r_ratio_text = "N/A"
-        try:
-            entry = float(setup.get('entry', 0))
-            sl = float(setup.get('stop_loss', 0))
-            tp1 = float(setup.get('take_profit', [0])[0])
-            if (entry - sl) != 0:
-                r_r_ratio = abs(tp1 - entry) / abs(entry - sl)
-                r_r_ratio_text = f"{r_r_ratio:.2f}"
-        except (ValueError, TypeError, IndexError, ZeroDivisionError):
-            pass
-
-        # Escapujemy wszystkie dynamiczne dane, które mogą zawierać znaki specjalne
         alert_type = self._escape_markdown_v2(setup.get('type', 'N/A'))
         symbol = self._escape_markdown_v2(alert_data.symbol)
         interval = self._escape_markdown_v2(f"({alert_data.interval})")
-        trigger = self._escape_markdown_v2(setup.get('trigger_text', 'Brak'))
-        stop_loss = self._escape_markdown_v2(f"{setup.get('stop_loss', 0):.4f}")
-        tp1 = self._escape_markdown_v2(f"{setup.get('take_profit', [0.0])[0]:.4f}")
+        trigger = self._escape_markdown_v2(alert_data.parsed_data.get('trigger_text', 'Brak'))
         confidence = setup.get('confidence', 'N/A')
-        
-        # R:R jest już bezpieczny, bo to liczba i kropka, ale dla spójności też escapujemy
-        r_r_display = self._escape_markdown_v2(f"{r_r_ratio_text}:1")
-
-        # Wnioski z analizy tekstowej też muszą być escapowane
         conclusions = self._escape_markdown_v2(alert_data.context)
         
+        entry = float(setup.get('entry', 0))
+        sl = float(setup.get('stop_loss', 0))
+        tp1_val = setup.get('take_profit_1')
+        tp2_data = setup.get('take_profit')
+
+        tp2_val = None
+        if isinstance(tp2_data, list) and tp2_data: tp2_val = tp2_data[0]
+        elif isinstance(tp2_data, (int, float)): tp2_val = tp2_data
+            
+        risk = abs(entry - sl) if entry > 0 and sl > 0 else 0
+        rr_tp1_text, rr_tp2_text = "N/A", "N/A"
+        if risk > 0:
+            if tp1_val: rr_tp1_text = f"{(abs(float(tp1_val) - entry) / risk):.2f}:1"
+            if tp2_val: rr_tp2_text = f"{(abs(float(tp2_val) - entry) / risk):.2f}:1"
+        
+        stop_loss_text = self._escape_markdown_v2(f"{sl:.4f}")
+        tp1_text = self._escape_markdown_v2(f"{float(tp1_val):.4f}") if tp1_val else "N/A"
+        tp2_text = self._escape_markdown_v2(f"{float(tp2_val):.4f}") if tp2_val else "N/A"
+
         caption_parts = [
-            f"🔔 *Nowy Alert: {alert_type} na {symbol} {interval}*",
+            f"🔔 *{alert_type} na {symbol} {interval}*",
             f"Wiarygodność: *{confidence}/10*",
             r"\-\-\-",
             f"*Trigger:* {trigger}",
-            f"*Stop Loss:* `{stop_loss}`",
-            f"*Take Profit 1:* `{tp1}`",
-            f"*R:R dla TP1:* {r_r_display}"
+            f"*Stop Loss:* `{stop_loss_text}`"
         ]
+        
+        # --- KLUCZOWA POPRAWKA: Dodano 'r' przed f-stringami ---
+        if tp1_val:
+            caption_parts.append(rf"*Take Profit 1:* `{tp1_text}` *\(R:R {self._escape_markdown_v2(rr_tp1_text)}\)*")
+        if tp2_val:
+            caption_parts.append(rf"*Take Profit 2:* `{tp2_text}` *\(R:R {self._escape_markdown_v2(rr_tp2_text)}\)*")
 
         if conclusions:
             caption_parts.append(f"\n*Kluczowe Wnioski:*\n{conclusions}")
@@ -251,14 +254,32 @@ class Ssnedam:
     async def close(self):
         """Zamyka workera i anuluje wszystkie zadania w kolejce."""
         if self.worker_task and not self.worker_task.done():
-            logger.info("[Ssnedam] Wysyłanie sygnału zamknięcia do pracownika...")
-            await self.analysis_queue.put(None)
+            logger.info("[Ssnedam] Anulowanie zadania pracownika AI...")
+            self.worker_task.cancel()  # Bezpośrednio anuluj zadanie
             try:
-                await asyncio.wait_for(self.worker_task, timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("[Ssnedam] Zamknięcie workera przekroczyło limit czasu. Anulowanie zadania.")
-                self.worker_task.cancel()
-            logger.info("[Ssnedam] Pracownik AI został zamknięty.")
+                await self.worker_task  # Poczekaj, aż anulowanie się zakończy
+            except asyncio.CancelledError:
+                logger.info("[Ssnedam] Zadanie pracownika AI zostało pomyślnie anulowane.")
+            except Exception as e:
+                logger.error(f"[Ssnedam] Niespodziewany błąd podczas oczekiwania na anulowanie workera: {e}")
+        
+        self.clear_analysis_queue()  # Na wszelki wypadek wyczyść pozostałe zadania
+        logger.info("[Ssnedam] Proces zamykania Ssnedam zakończony.")
+
+    def clear_analysis_queue(self):
+        """Synchronously clears all pending tasks from the analysis queue."""
+        cleared_count = 0
+        while not self.analysis_queue.empty():
+            try:
+                self.analysis_queue.get_nowait()
+                self.analysis_queue.task_done()
+                cleared_count += 1
+            except asyncio.QueueEmpty:
+                break
+        
+        if cleared_count > 0:
+            logger.info(f"Anulowano i wyczyszczono {cleared_count} zadań z kolejki AI.")
+            self.queue_update_callback(0)
 
     async def send_telegram_alert_with_album(self, alert_data: AlertData, images: List[bytes]):
         """

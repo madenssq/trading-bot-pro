@@ -6,6 +6,7 @@ import time
 import logging
 import asyncio
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 import ccxt.async_support as ccxt
 from typing import Dict, List, Optional
 from core.analyzer import TechnicalAnalyzer
@@ -16,21 +17,15 @@ from app_config import SYMBOLS_CACHE_FILE, CACHE_MAX_AGE_SECONDS, USER_ID_FILE, 
 logger = logging.getLogger(__name__)
 
 class CoinManager:
-    def __init__(self, db_client=None, auth_admin_client=None, analyzer: TechnicalAnalyzer = None):
+    def __init__(self, db_client=None, auth_admin_client=None, analyzer: TechnicalAnalyzer = None, thread_pool: ThreadPoolExecutor = None):
         self.db = db_client
         self.auth = auth_admin_client
         self.user_id: Optional[str] = None
         self.available_symbols: Dict[str, List[str]] = {}
         self.user_coin_groups: Dict[str, List[Dict[str, str]]] = {}
-        
         self.analyzer = analyzer
+        self.thread_pool = thread_pool
 
-    
-
-    async def close_exchanges(self):
-        tasks = [ex.close() for ex in self.exchanges.values()]
-        await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info("Połączenia CoinManagera z giełdami zostały zamknięte.")
 
     def _is_cache_valid(self) -> bool:
         if not os.path.exists(SYMBOLS_CACHE_FILE): return False
@@ -82,8 +77,6 @@ class CoinManager:
             except Exception as e:
                 logger.error(f"Nie udało się pobrać symboli z {exchange_id}: {e}")
 
-        # KROK 2: Upewnij się, że wywołanie przekazuje tylko JEDEN argument
-        await asyncio.gather(*[fetch_from(eid) for eid in SUPPORTED_EXCHANGES])
         
         self.available_symbols = all_symbols
         self._save_symbols_to_cache()
@@ -120,11 +113,12 @@ class CoinManager:
         """Wczytuje grupy coinów dla ustawionego user_id z Firestore."""
         logger.info(f"Ładowanie grup coinów dla użytkownika {self.user_id} z Firestore...")
         doc_ref = self.db.collection('user_coin_lists').document(self.user_id)
-        
+
         try:
             loop = asyncio.get_event_loop()
-            doc = await loop.run_in_executor(None, doc_ref.get)
-            
+            # ZMIANA: Zastępujemy '...' na właściwą funkcję do wykonania
+            doc = await loop.run_in_executor(self.thread_pool, doc_ref.get)
+
             if doc.exists:
                 self.user_coin_groups = doc.to_dict()
                 logger.info("Pomyślnie wczytano grupy coinów z Firestore.")
@@ -140,11 +134,12 @@ class CoinManager:
         if not (self.db and self.user_id):
             logger.warning("Próba zapisu do Firestore bez aktywnego połączenia lub user_id.")
             return False
-            
+
         try:
             doc_ref = self.db.collection('user_coin_lists').document(self.user_id)
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, lambda: doc_ref.set(self.user_coin_groups))
+            # ZMIANA: Zastępujemy '...' na właściwą funkcję do wykonania
+            await loop.run_in_executor(self.thread_pool, lambda: doc_ref.set(self.user_coin_groups))
             logger.info("Pomyślnie zapisano grupy coinów w Firestore.")
             return True
         except Exception as e:

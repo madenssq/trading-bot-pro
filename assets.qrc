@@ -1,0 +1,7 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/">
+  <file>assets/banner_dark.png</file>
+  <file>assets/banner_light.png</file>
+  <file>assets/loading.gif</file>
+</qresource>
+</RCC>

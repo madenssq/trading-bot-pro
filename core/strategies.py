@@ -31,17 +31,14 @@ class EmaCross(Strategy):
 class AICloneStrategy(Strategy):
     def __init__(self, broker, data, settings_manager: SettingsManager):
         super().__init__(broker, data, settings_manager)
-        
         strategy_params = self.settings.get('strategies.ai_clone', {})
-        self.ema_fast_len = strategy_params.get('ema_fast_len', 21)
-        self.ema_slow_len = strategy_params.get('ema_slow_len', 50)
+        self.ema_fast_len = strategy_params.get('ema_fast_len', 30)
+        self.ema_slow_len = strategy_params.get('ema_slow_len', 170)
         self.rsi_len = strategy_params.get('rsi_len', 14)
         self.atr_len = strategy_params.get('atr_len', 14)
         self.rsi_overbought = strategy_params.get('rsi_overbought', 75)
-        self.atr_multiplier_sl = strategy_params.get('atr_multiplier_sl', 1.5)
-        # --- NOWE PARAMETRY ---
-        self.risk_reward_ratio_tp1 = strategy_params.get('risk_reward_ratio_tp1', 1.5)
-        self.risk_reward_ratio_tp2 = strategy_params.get('risk_reward_ratio_tp2', 3.0)
+        self.atr_multiplier_sl = strategy_params.get('atr_multiplier_sl', 2.0)
+        # Usunęliśmy parametry R:R, bo nie są już tu potrzebne
 
     def init(self):
         self.ema_fast = self.I(ta.ema, length=self.ema_fast_len)
@@ -66,11 +63,44 @@ class AICloneStrategy(Strategy):
                 
                 price = self.data.Close.iloc[self.i]
                 sl = price - (self.atr.iloc[self.i] * self.atr_multiplier_sl)
-                risk_amount = abs(price - sl)
                 
-                # --- NOWA LOGIKA: Obliczamy DWA cele zysku ---
-                tp1 = price + (risk_amount * self.risk_reward_ratio_tp1)
-                tp2 = price + (risk_amount * self.risk_reward_ratio_tp2)
-                
-                # Przekazujemy oba TP do brokera
-                self._broker.buy(sl=sl, tp=tp2, tp1=tp1)
+                # --- ZMIANA: Przekazujemy tylko SL. TP wyznaczy broker. ---
+                self._broker.buy(sl=sl)
+
+class MeanReversionRSI(Strategy):
+    """
+    Strategia powrotu do średniej oparta na wskaźniku RSI.
+    Kupuje, gdy rynek jest skrajnie wyprzedany.
+    Sprzedaje (zamyka pozycję), gdy rynek wraca do neutralnego poziomu.
+    """
+    def __init__(self, broker, data, settings_manager: SettingsManager):
+        super().__init__(broker, data, settings_manager)
+        
+        # --- ZMIANA: Wczytujemy parametry z pliku ustawień ---
+        strategy_params = self.settings.get('strategies.mean_reversion_rsi', {})
+        
+        self.rsi_len = strategy_params.get('rsi_len', 14)
+        self.rsi_oversold = strategy_params.get('rsi_oversold', 25)
+        self.rsi_exit_level = strategy_params.get('rsi_exit_level', 50)
+        self.atr_len = strategy_params.get('atr_len', 14)
+        self.atr_multiplier_sl = strategy_params.get('atr_multiplier_sl', 2.0)
+
+    def init(self):
+        """Inicjalizujemy wskaźniki potrzebne dla strategii."""
+        self.rsi = self.I(ta.rsi, length=self.rsi_len)
+        self.atr = self.I(ta.atr, length=self.atr_len)
+
+    def next(self):
+        """Logika decyzyjna dla każdej świecy."""
+        current_rsi = self.rsi.iloc[self.i]
+
+        if not self._broker.in_position and current_rsi < self.rsi_oversold:
+            price = self.data.Close.iloc[self.i]
+            sl = price - (self.atr.iloc[self.i] * self.atr_multiplier_sl)
+            
+            # W tej strategii nie używamy sztywnego TP, więc ustawiamy go na None
+            self._broker.buy(sl=sl, tp=None, tp1=None)
+            return
+
+        if self._broker.in_position and current_rsi > self.rsi_exit_level:
+            self._broker.close(reason='RSI_EXIT')

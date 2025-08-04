@@ -15,8 +15,7 @@ from core.backtester import Backtester
 from core.settings_manager import SettingsManager
 from core.analyzer import TechnicalAnalyzer
 
-# Importujemy nasze klasy strategii
-from core.strategies import RsiOscillator, EmaCross, AICloneStrategy
+from core.strategies import RsiOscillator, EmaCross, AICloneStrategy, MeanReversionRSI
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +35,7 @@ class BacktesterTab(QWidget):
             "Klon Strategii AI (zalecane)": AICloneStrategy,
             "RSI (Kup <30, Sprzedaj >70)": RsiOscillator,
             "Złoty/Śmierci Krzyż (EMA 50/200)": EmaCross,
+            "Powrót do Średniej (RSI < 25)": MeanReversionRSI,
         }
 
         self._setup_ui()
